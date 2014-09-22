@@ -1,7 +1,7 @@
 /********************************************************************************
 ** Form generated from reading UI file 'mainwindow.ui'
 **
-** Created: Mon Sep 22 17:12:54 2014
+** Created: Mon Sep 22 17:40:01 2014
 **      by: Qt User Interface Compiler version 4.8.1
 **
 ** WARNING! All changes made in this file will be lost when recompiling UI file!
@@ -51,7 +51,7 @@ public:
     QGroupBox *ConstraintBox;
     QRadioButton *penaltyForceButton;
     QRadioButton *stepAndProjectButton;
-    QRadioButton *lagranceMultiplierButton;
+    QRadioButton *lagrangeMultiplierButton;
     QPushButton *startSimulationButton;
     QGroupBox *SimParametersBox;
     QLabel *timeStepLabel;
@@ -75,7 +75,7 @@ public:
     QCheckBox *dampingStiffnessCheckBox;
     QLabel *dampingStiffnessLabel;
     QLineEdit *dampingStiffnessEdit;
-    QCheckBox *elasticBendingCheckbox;
+    QCheckBox *elasticBendingCheckBox;
     QGroupBox *uiOptionsBox;
     QWidget *horizontalLayoutWidget_2;
     QHBoxLayout *horizontalLayout_2;
@@ -170,9 +170,9 @@ public:
         stepAndProjectButton = new QRadioButton(ConstraintBox);
         stepAndProjectButton->setObjectName(QString::fromUtf8("stepAndProjectButton"));
         stepAndProjectButton->setGeometry(QRect(20, 50, 181, 22));
-        lagranceMultiplierButton = new QRadioButton(ConstraintBox);
-        lagranceMultiplierButton->setObjectName(QString::fromUtf8("lagranceMultiplierButton"));
-        lagranceMultiplierButton->setGeometry(QRect(20, 70, 181, 22));
+        lagrangeMultiplierButton = new QRadioButton(ConstraintBox);
+        lagrangeMultiplierButton->setObjectName(QString::fromUtf8("lagrangeMultiplierButton"));
+        lagrangeMultiplierButton->setGeometry(QRect(20, 70, 181, 22));
         startSimulationButton = new QPushButton(ConstraintBox);
         startSimulationButton->setObjectName(QString::fromUtf8("startSimulationButton"));
         startSimulationButton->setGeometry(QRect(10, 130, 181, 27));
@@ -249,9 +249,9 @@ public:
         dampingStiffnessEdit = new QLineEdit(activeForcesBox);
         dampingStiffnessEdit->setObjectName(QString::fromUtf8("dampingStiffnessEdit"));
         dampingStiffnessEdit->setGeometry(QRect(370, 110, 51, 21));
-        elasticBendingCheckbox = new QCheckBox(activeForcesBox);
-        elasticBendingCheckbox->setObjectName(QString::fromUtf8("elasticBendingCheckbox"));
-        elasticBendingCheckbox->setGeometry(QRect(30, 130, 151, 21));
+        elasticBendingCheckBox = new QCheckBox(activeForcesBox);
+        elasticBendingCheckBox->setObjectName(QString::fromUtf8("elasticBendingCheckBox"));
+        elasticBendingCheckBox->setGeometry(QRect(30, 130, 151, 21));
 
         verticalLayout->addWidget(activeForcesBox);
 
@@ -410,7 +410,7 @@ public:
         ConstraintBox->setTitle(QApplication::translate("MainWindow", "Constraint Handling", 0, QApplication::UnicodeUTF8));
         penaltyForceButton->setText(QApplication::translate("MainWindow", "Penalty Force", 0, QApplication::UnicodeUTF8));
         stepAndProjectButton->setText(QApplication::translate("MainWindow", "Step and Project", 0, QApplication::UnicodeUTF8));
-        lagranceMultiplierButton->setText(QApplication::translate("MainWindow", "Lagrange Multiplier", 0, QApplication::UnicodeUTF8));
+        lagrangeMultiplierButton->setText(QApplication::translate("MainWindow", "Lagrange Multiplier", 0, QApplication::UnicodeUTF8));
         startSimulationButton->setText(QApplication::translate("MainWindow", "Start Simulation", 0, QApplication::UnicodeUTF8));
         SimParametersBox->setTitle(QApplication::translate("MainWindow", "Parameters", 0, QApplication::UnicodeUTF8));
         timeStepLabel->setText(QApplication::translate("MainWindow", "Time Step:", 0, QApplication::UnicodeUTF8));
@@ -426,7 +426,7 @@ public:
         maxStrainLabel->setText(QApplication::translate("MainWindow", "Max Strain:", 0, QApplication::UnicodeUTF8));
         dampingStiffnessCheckBox->setText(QApplication::translate("MainWindow", "Viscous Damping", 0, QApplication::UnicodeUTF8));
         dampingStiffnessLabel->setText(QApplication::translate("MainWindow", "Stiffness:", 0, QApplication::UnicodeUTF8));
-        elasticBendingCheckbox->setText(QApplication::translate("MainWindow", "Elastic Bending", 0, QApplication::UnicodeUTF8));
+        elasticBendingCheckBox->setText(QApplication::translate("MainWindow", "Elastic Bending", 0, QApplication::UnicodeUTF8));
         uiOptionsBox->setTitle(QApplication::translate("MainWindow", "UI Options", 0, QApplication::UnicodeUTF8));
         clickFunctionBox->setTitle(QApplication::translate("MainWindow", "Click Function", 0, QApplication::UnicodeUTF8));
         addParticleButton->setText(QApplication::translate("MainWindow", "Add Particle", 0, QApplication::UnicodeUTF8));

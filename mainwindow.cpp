@@ -35,7 +35,7 @@ void MainWindow::setParametersFromUI()
         params.constraint = SimParameters::CH_PENALTY_FORCE;
     else if(ui->stepAndProjectButton->isChecked())
         params.constraint = SimParameters::CH_STEP_PROJECT;
-    else if(ui->lagranceMultiplierButton->isChecked())
+    else if(ui->lagrangeMultiplierButton->isChecked())
         params.constraint = SimParameters::CH_LAGRANGE;
 
 
@@ -53,7 +53,7 @@ void MainWindow::setParametersFromUI()
         params.activeForces |= SimParameters::F_FLOOR;
     if(ui->dampingStiffnessCheckBox->isChecked())
         params.activeForces |= SimParameters::F_DAMPING;
-    if(ui->elasticBendingCheckbox->isChecked())
+    if(ui->elasticBendingCheckBox->isChecked())
         params.activeForces |= SimParameters::F_ELASTIC;
 
     params.gravityG = ui->gravityGEdit->text().toDouble();
@@ -117,7 +117,7 @@ void MainWindow::setUIFromParameters(const SimParameters &params)
             ui->stepAndProjectButton->setChecked(true);
             break;
         case SimParameters::CH_LAGRANGE:
-            ui->lagranceMultiplierButton->setChecked(true);
+            ui->lagrangeMultiplierButton->setChecked(true);
             break;
     }
 
@@ -130,7 +130,7 @@ void MainWindow::setUIFromParameters(const SimParameters &params)
     ui->springsCheckBox->setChecked(params.activeForces & SimParameters::F_SPRINGS);
     ui->floorCheckBox->setChecked(params.activeForces & SimParameters::F_FLOOR);
     ui->dampingStiffnessCheckBox->setChecked(params.activeForces & SimParameters::F_DAMPING);
-    ui->elasticBendingCheckbox->setChecked(params.activeForces & SimParameters::F_ELASTIC);
+    ui->elasticBendingCheckBox->setChecked(params.activeForces & SimParameters::F_ELASTIC);
 
     ui->gravityGEdit->setText(QString::number(params.gravityG));
     ui->springStiffnessEdit->setText(QString::number(params.springStiffness));
