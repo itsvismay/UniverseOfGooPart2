@@ -23,8 +23,8 @@ SimParameters::SimParameters()
     sawRadius= 0.01;
 
     rodDensity = 2.0;
-    rodStretch = 100.0;
-    rodBend = 0.05;
+    rodStretchStiffness = 100.0;
+    rodBendingStiffness = 0.05;
     rodSegments = 5;
     ropeDensity = 2.0;
     ropeBend = 0.01;

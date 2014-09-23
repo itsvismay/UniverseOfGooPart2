@@ -45,6 +45,23 @@ void Simulation::render()
 
     renderLock_.lock();
     {
+        // Rendering Rods
+        for(vector<Rod>::iterator it = rods_.begin(); it != rods_.end(); ++it)
+        {
+            glColor3f(0.75, 0.0, 0.75);
+            Vector2d sourcepos = particles_[it->p1].pos;
+            Vector2d destpos   = particles_[it->p2].pos;
+
+            double dist = (sourcepos-destpos).norm();
+
+            glLineWidth(8);
+
+            glBegin(GL_LINES);
+            glVertex2f(sourcepos[0], sourcepos[1]);
+            glVertex2f(destpos[0], destpos[1]);
+            glEnd();
+        }
+        //Rendering Springs
         for(vector<Spring>::iterator it = springs_.begin(); it != springs_.end(); ++it)
         {
             glColor3f(0.0, 0.0, 1.0);
@@ -55,12 +72,18 @@ void Simulation::render()
 
             glLineWidth(baselinewidth/dist);
 
+            if (it->unsnappable)
+            {
+                glColor3f(0.752941, 0.752941, 0.752941);
+                glLineWidth(4);
+            }
+
             glBegin(GL_LINES);
             glVertex2f(sourcepos[0], sourcepos[1]);
             glVertex2f(destpos[0], destpos[1]);
             glEnd();
         }
-
+        //Rendering Particles
         for(vector<Particle>::iterator it = particles_.begin(); it != particles_.end(); ++it)
         {
             double radius = baseradius*sqrt(it->mass);
@@ -85,7 +108,7 @@ void Simulation::render()
             }
             glEnd();
         }
-
+        //Rendering Saws
         for(vector<Saw>::iterator it = saws_.begin(); it != saws_.end(); ++it)
         {
             double outerradius = it->radius;
@@ -126,22 +149,76 @@ void Simulation::addParticle(double x, double y)
 {
     renderLock_.lock();
     {
-        Vector2d newpos(x,y);
+//        cout<<"\n Particles Start: "<<particles_.size();
+        Vector2d newParticlePos(x,y);
+        double particleMass = params_.particleMass;
+        int newParticleIndex = particles_.size();
+        if (params_.connector == params_.CT_FLEXIBLE_ROD)
+        {
+            particles_.push_back(Particle(newParticlePos, particleMass, params_.particleFixed, false));
+        }
         for(int i=0; i<(int)particles_.size(); i++)
         {
-            Vector2d pos = particles_[i].pos;
-            double dist = (pos-newpos).norm();
-            if(dist <= params_.maxSpringDist)
+            if (i == newParticleIndex)
             {
-                springs_.push_back(Spring(particles_.size(), i, params_.springStiffness/dist, dist));
+                continue;
+            }
+            Vector2d pos = particles_[i].pos;
+            double dist = (pos-newParticlePos).norm();
+            if(!particles_[i].inert && dist <= params_.maxSpringDist)
+            {
+                if (params_.connector == params_.CT_RIGID_ROD)
+                {
+                    rods_.push_back(Rod(particles_.size(), i, dist));
+                }
+                else if (params_.connector == params_.CT_SPRING)
+                {
+                    springs_.push_back(Spring(particles_.size(), i, params_.springStiffness/dist, dist));
+                }
+                else if (params_.connector == params_.CT_FLEXIBLE_ROD)
+                {
+                    double springLength = dist/params_.rodSegments;
+                    double springMass = params_.rodDensity * springLength;
+                    double springStiffness = params_.rodStretchStiffness/springLength;
+                    double hingeStiffness = 0;
+                    Vector2d unitVector = (newParticlePos - pos)/dist;
+                    //segmentNo * dist/segments
+                    Vector2d distanceToMove = unitVector * (dist/params_.rodSegments);
+                    Vector2d newInertParticlePos = (distanceToMove * 1) + pos;
+                    springs_.push_back(Spring(particles_.size(), i, springStiffness, springLength, springMass, true));
+                    particles_.push_back(Particle(newInertParticlePos, springMass, false, true));
+                    particles_[i].mass += springMass/2;
+                    int j;
+//                    cout<<"\n Particle Size:";
+                    for (j=2; j<=params_.rodSegments - 1; j++)
+                    {
+//                        cout<<particles_.size()<<endl;
+                        newInertParticlePos = (distanceToMove * j) + pos;
+                        springs_.push_back(Spring(particles_.size(), particles_.size() - 1, springStiffness, springLength, springMass, true));
+                        particles_.push_back(Particle(newInertParticlePos, springMass, false, true));
+                        hingeStiffness = (params_.rodBendingStiffness * 2)/(springs_[springs_.size() - 1].restlen + springs_[springs_.size() - 2].restlen);
+                        hinges_.push_back(Hinge(springs_.size() - 1, springs_.size() - 2, hingeStiffness));
+                    }
+                    springs_.push_back(Spring(newParticleIndex, particles_.size() - 1, springStiffness, springLength, springMass, true));
+                    hingeStiffness = (params_.rodBendingStiffness * 2)/(springs_[springs_.size() - 1].restlen + springs_[springs_.size() - 2].restlen);
+                    hinges_.push_back(Hinge(springs_.size() - 1, springs_.size() - 2, hingeStiffness));
+                    particleMass += springMass/2;
+                }
             }
         }
-
-        double mass = params_.particleMass;
         if(params_.particleFixed)
-            mass = std::numeric_limits<double>::infinity();
-
-        particles_.push_back(Particle(newpos, mass, params_.particleFixed));
+        {
+            particleMass = std::numeric_limits<double>::infinity();
+        }
+        if (params_.connector != params_.CT_FLEXIBLE_ROD)
+        {
+            particles_.push_back(Particle(newParticlePos, particleMass, params_.particleFixed, false));
+        }
+        else
+        {
+            particles_[newParticleIndex].mass = particleMass;
+        }
+//        cout<<"\n Particles End: "<<particles_.size();
     }
     renderLock_.unlock();
 }
@@ -150,17 +227,6 @@ void Simulation::addSaw(double x, double y)
 {
     renderLock_.lock();
         saws_.push_back(Saw(Vector2d(x,y), params_.sawRadius));
-    renderLock_.unlock();
-}
-
-void Simulation::clearScene()
-{
-    renderLock_.lock();
-    {
-        particles_.clear();
-        springs_.clear();
-        saws_.clear();
-    }
     renderLock_.unlock();
 }
 
@@ -207,8 +273,34 @@ void Simulation::computeForceAndHessian(const VectorXd &q, const VectorXd &qprev
         processDampingForce(q, qprev, F, Hcoeffs);
     if(params_.activeForces & SimParameters::F_FLOOR)
         processFloorForce(q, qprev, F, Hcoeffs);
+    if(params_.constraint == SimParameters::CH_PENALTY_FORCE)
+        processPenaltyForce(q, F);
 
     H.setFromTriplets(Hcoeffs.begin(), Hcoeffs.end());
+//    cout<<"\nQ : "<<q;
+//    cout<<"\nH : "<<H;
+//    cout<<"\nF : "<<F;
+//    cout<<"\nH : "<<H;
+
+}
+
+void Simulation::processPenaltyForce(const Eigen::VectorXd &q, Eigen::VectorXd &F)
+{
+    for(vector<Rod>::iterator it = rods_.begin(); it != rods_.end(); it++)
+    {
+        Vector2d particle1 = q.segment<2>(2*it->p1);
+        Vector2d particle2 = q.segment<2>(2*it->p2);
+        double dist = (particle2 - particle1).norm();
+        int index1 = it->p1;
+        int index2 = it->p2;
+
+        double localFx = 4 * params_.penaltyStiffness  * (dist*dist - it->restlen*it->restlen) * (particle2[0] - particle1[0]);
+        double localFy = 4 * params_.penaltyStiffness  * (dist*dist - it->restlen*it->restlen) * (particle2[1] - particle1[1]);
+        F[index1*2] += localFx;
+        F[index1*2+1] += localFy;
+        F[index2*2] -= localFx;
+        F[index2*2+1] -= localFy;
+    }
 }
 
 void Simulation::processGravityForce(VectorXd &F)
@@ -229,6 +321,10 @@ void Simulation::processSpringForce(const VectorXd &q, VectorXd &F, std::vector<
 
     for(int i=0; i<nsprings; i++)
     {
+        if (springs_[i].unsnappable)
+        {
+            continue;
+        }
         Vector2d p1 = q.segment<2>(2*springs_[i].p1);
         Vector2d p2 = q.segment<2>(2*springs_[i].p2);
         double dist = (p2-p1).norm();
@@ -326,11 +422,16 @@ void Simulation::computeMassInverse(Eigen::SparseMatrix<double> &Minv)
 
 void Simulation::numericalIntegration(VectorXd &q, VectorXd &qprev, VectorXd &v)
 {
-//    VectorXd F;
-//    SparseMatrix<double> H;
-//    SparseMatrix<double> Minv;
+    VectorXd F;
+    SparseMatrix<double> H;
+    SparseMatrix<double> Minv;
 
-//    computeMassInverse(Minv);
+    computeMassInverse(Minv);
+
+    VectorXd oldq = q;
+    q += params_.timeStep*v;
+    computeForceAndHessian(q, oldq, F, H);
+    v += params_.timeStep*Minv*F;
 
 //    switch(params_.integrator)
 //    {
@@ -409,7 +510,7 @@ void Simulation::pruneOverstrainedSprings()
         double dist = (dstpos-srcpos).norm();
 
         double strain = (dist - springs_[i].restlen)/springs_[i].restlen;
-        if(strain > params_.maxSpringStrain)
+        if(!springs_[i].unsnappable && strain > params_.maxSpringStrain)
             toremove.push_back(i);
     }
 
@@ -431,7 +532,7 @@ double Simulation::ptSegmentDist(const Vector2d &p, const Vector2d &q1, const Ve
     return sqrt(mindistsq);
 }
 
-void Simulation::detectSawedSprings(std::set<int> &springsToDelete)
+void Simulation::detectSawedSprings(std::set<int> &springsToDelete, std::set<int> &hingesToDelete)
 {
     for(int i=0; i<(int)springs_.size(); i++)
     {
@@ -453,6 +554,41 @@ void Simulation::detectSawedSprings(std::set<int> &springsToDelete)
             if(sawspringdist <= sawr)
             {
                 springsToDelete.insert(i);
+                for(int j=0; j<(int)hinges_.size(); j++)
+                {
+                    if (hinges_[j].s1 == i || hinges_[j].s2 == i)
+                    {
+                        hingesToDelete.insert(j);
+                    }
+                }
+                break;
+            }
+        }
+    }
+}
+
+void Simulation::detectSawedRods(std::set<int> &rodsToDelete)
+{
+    for(int i=0; i<(int)rods_.size(); i++)
+    {
+        Vector2d pos1 = particles_[rods_[i].p1].pos;
+        Vector2d pos2 = particles_[rods_[i].p2].pos;
+        double maxx = max(pos1[0], pos2[0]);
+        double minx = min(pos1[0], pos2[0]);
+        double maxy = max(pos1[1], pos2[1]);
+        double miny = min(pos1[1], pos2[1]);
+        for(vector<Saw>::iterator saw = saws_.begin(); saw != saws_.end(); ++saw)
+        {
+            Vector2d sawpos = saw->pos;
+            double sawRadius = saw->radius;
+
+            if(sawpos[0] - sawRadius > maxx || sawpos[0] + sawRadius < minx || sawpos[1] - sawRadius > maxy || sawpos[1] + sawRadius < miny)
+                continue;
+
+            double sawRodDistance = ptSegmentDist(sawpos, pos1, pos2);
+            if(sawRodDistance <= sawRadius)
+            {
+                rodsToDelete.insert(i);
                 break;
             }
         }
@@ -463,9 +599,9 @@ void Simulation::detectSawedParticles(std::set<int> &particlesToDelete)
 {
     for(int i=0; i<(int)particles_.size(); i++)
     {
-        Vector2d partpos = particles_[i].pos;
+        Vector2d particlePos = particles_[i].pos;
 
-        if(fabs(partpos[0]) > 2 || fabs(partpos[1]) > 2)
+        if(fabs(particlePos[0]) > 2 || fabs(particlePos[1]) > 2)
         {
             particlesToDelete.insert(i);
             break;
@@ -474,7 +610,7 @@ void Simulation::detectSawedParticles(std::set<int> &particlesToDelete)
         for(vector<Saw>::iterator it = saws_.begin(); it != saws_.end(); ++it)
         {
             Vector2d sawpos = it->pos;
-            double sqdist = (sawpos-partpos).squaredNorm();
+            double sqdist = (sawpos-particlePos).squaredNorm();
             if(sqdist < it->radius*it->radius)
             {
                 particlesToDelete.insert(i);
@@ -488,21 +624,40 @@ void Simulation::deleteSawedObjects()
 {
     set<int> particlestodelete;
     set<int> springstodelete;
+    set<int> hingestodelete;
+    set<int> rodsToDelete;
     detectSawedParticles(particlestodelete);
-    detectSawedSprings(springstodelete);
+    detectSawedSprings(springstodelete, hingestodelete);
+    detectSawedRods(rodsToDelete);
 
     vector<Particle> newparticles;
     vector<Spring> newsprings;
+    vector<Hinge> newhinges;
+    vector<Rod> newrods;
     vector<int> remainingparticlemap;
-
+    vector<int> remainingspringmap;
     if(!particlestodelete.empty())
     {
         for(int i=0; i<(int)springs_.size(); i++)
         {
             if(particlestodelete.count(springs_[i].p1) || particlestodelete.count(springs_[i].p2))
+            {
                 springstodelete.insert(i);
-        }
+                for(int j=0; j<(int)hinges_.size(); j++)
+                {
+                    if (springstodelete.count(hinges_[j].s1) || springstodelete.count(hinges_[j].s2))
+                    {
+                        hingestodelete.insert(j);
+                    }
+                }
+            }
 
+        }
+        for(int i=0; i<(int)rods_.size(); i++)
+        {
+            if(particlestodelete.count(rods_[i].p1) || particlestodelete.count(rods_[i].p2))
+                rodsToDelete.insert(i);
+        }
         for(int i=0; i<(int)particles_.size(); i++)
         {
             if(particlestodelete.count(i) == 0)
@@ -520,17 +675,52 @@ void Simulation::deleteSawedObjects()
         {
             if(springstodelete.count(i) == 0)
             {
+                remainingspringmap.push_back(newsprings.size());
                 newsprings.push_back(springs_[i]);
+            }
+            else
+            {
+                remainingspringmap.push_back(-1);
             }
         }
     }
-
-    if(!springstodelete.empty() || !particlestodelete.empty())
+    if(!rodsToDelete.empty())
+    {
+        for(int i=0; i<(int)rods_.size(); i++)
+        {
+            if(rodsToDelete.count(i) == 0)
+            {
+                newrods.push_back(rods_[i]);
+            }
+        }
+    }
+    if(!hingestodelete.empty())
+    {
+        for(int i=0; i<(int)hinges_.size(); i++)
+        {
+            if(hingestodelete.count(i) == 0)
+            {
+                newhinges.push_back(hinges_[i]);
+            }
+        }
+    }
+    if(!springstodelete.empty() || !particlestodelete.empty() || !rodsToDelete.empty() || !hingestodelete.empty())
     {
         renderLock_.lock();
         {
+            if(!hingestodelete.empty())
+                hinges_ = newhinges;
+            if(!rodsToDelete.empty())
+                rods_ = newrods;
             if(!springstodelete.empty())
+            {
                 springs_ = newsprings;
+                for(vector<Hinge>::iterator hinge = hinges_.begin(); hinge != hinges_.end(); ++hinge)
+                {
+                    hinge->s1 = remainingspringmap[hinge->s1];
+                    hinge->s2 = remainingspringmap[hinge->s2];
+                }
+            }
             if(!particlestodelete.empty())
             {
                 particles_ = newparticles;
@@ -539,9 +729,26 @@ void Simulation::deleteSawedObjects()
                     it->p1 = remainingparticlemap[it->p1];
                     it->p2 = remainingparticlemap[it->p2];
                 }
+                for(vector<Rod>::iterator it = rods_.begin(); it != rods_.end(); ++it)
+                {
+                    it->p1 = remainingparticlemap[it->p1];
+                    it->p2 = remainingparticlemap[it->p2];
+                }
             }
-
         }
         renderLock_.unlock();
     }
+}
+
+void Simulation::clearScene()
+{
+    renderLock_.lock();
+    {
+        particles_.clear();
+        springs_.clear();
+        hinges_.clear();
+        saws_.clear();
+        rods_.clear();
+    }
+    renderLock_.unlock();
 }

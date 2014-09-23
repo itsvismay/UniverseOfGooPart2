@@ -82,12 +82,12 @@ void MainWindow::setParametersFromUI()
         params.connector = SimParameters:: CT_ROPE;
 
     params.rodDensity = ui->rodDensityEdit->text().toDouble();
-    params.rodStretch = ui->rodStretchEdit->text().toDouble();
-    params.rodBend = ui->rodBendEdit->text().toDouble();
+    params.rodStretchStiffness = ui->rodStretchEdit->text().toDouble();
+    params.rodBendingStiffness = ui->rodBendEdit->text().toDouble();
     params.rodSegments = ui->rodSegmentsEdit->text().toInt();
     params.ropeDensity = ui->ropeDensityEdit->text().toDouble();
     params.ropeBend = ui->ropeBendEdit->text().toDouble();
-    params.ropeSegments = ui->rodSegmentsEdit->text().toInt();
+    params.ropeSegments = ui->ropeSegmentsEdit->text().toInt();
 
 
 
@@ -157,8 +157,8 @@ void MainWindow::setUIFromParameters(const SimParameters &params)
         ui->ropeButton->setChecked(true);
 
     ui->rodDensityEdit->setText(QString::number(params.rodDensity));
-    ui->rodStretchEdit->setText(QString::number(params.rodStretch));
-    ui->rodBendEdit->setText(QString::number(params.rodBend));
+    ui->rodStretchEdit->setText(QString::number(params.rodStretchStiffness));
+    ui->rodBendEdit->setText(QString::number(params.rodBendingStiffness));
     ui->rodSegmentsEdit->setText(QString::number(params.rodSegments));
     ui->ropeDensityEdit->setText(QString::number(params.ropeDensity));
     ui->ropeBendEdit->setText(QString::number(params.ropeBend));

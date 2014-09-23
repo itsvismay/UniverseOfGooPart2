@@ -34,8 +34,8 @@ struct SimParameters
     double maxSpringDist;
     double sawRadius;
     double rodDensity;
-    double rodStretch;
-    double rodBend;
+    double rodStretchStiffness;
+    double rodBendingStiffness;
     int rodSegments;
     double ropeDensity;
     double ropeBend;
