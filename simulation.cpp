@@ -177,20 +177,25 @@ void Simulation::addParticle(double x, double y)
                 }
                 else if (params_.connector == params_.CT_FLEXIBLE_ROD)
                 {
-                    double springLength = dist/params_.rodSegments;
+                    int rodSegs = params_.rodSegments;
+                    if (rodSegs <= 1)
+                    {
+                        rodSegs = 2;
+                    }
+                    double springLength = dist/rodSegs;
                     double springMass = params_.rodDensity * springLength;
                     double springStiffness = params_.rodStretchStiffness/springLength;
                     double hingeStiffness = 0;
                     Vector2d unitVector = (newParticlePos - pos)/dist;
                     //segmentNo * dist/segments
-                    Vector2d distanceToMove = unitVector * (dist/params_.rodSegments);
+                    Vector2d distanceToMove = unitVector * (dist/rodSegs);
                     Vector2d newInertParticlePos = (distanceToMove * 1) + pos;
                     springs_.push_back(Spring(particles_.size(), i, springStiffness, springLength, springMass, true));
                     particles_.push_back(Particle(newInertParticlePos, springMass, false, true));
                     particles_[i].mass += springMass/2;
                     int j;
 //                    cout<<"\n Particle Size:";
-                    for (j=2; j<=params_.rodSegments - 1; j++)
+                    for (j=2; j<=rodSegs - 1; j++)
                     {
 //                        cout<<particles_.size()<<endl;
                         newInertParticlePos = (distanceToMove * j) + pos;
@@ -350,6 +355,10 @@ void Simulation::processDampingForce(const VectorXd &q, const VectorXd &qprev, V
 
     for(int i=0; i<nsprings; i++)
     {
+        if (springs_[i].unsnappable)
+        {
+            continue;
+        }
         Vector2d p1 = q.segment<2>(2*springs_[i].p1);
         Vector2d p2 = q.segment<2>(2*springs_[i].p2);
         Vector2d p1prev = qprev.segment<2>(2*springs_[i].p1);
@@ -432,7 +441,7 @@ void Simulation::numericalIntegration(VectorXd &q, VectorXd &qprev, VectorXd &v)
     }
     else if(params_.constraint == SimParameters::CH_LAGRANGE)
     {
-        computerLagrange(q,)
+        //computerLagrange(q,)
     }
     computeForceAndHessian(q, oldq, F, H);
     v += params_.timeStep*Minv*F;
