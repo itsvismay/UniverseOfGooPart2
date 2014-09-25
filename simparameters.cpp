@@ -3,7 +3,7 @@
 SimParameters::SimParameters()
 {
     simRunning = false;
-    constraint = CH_PENALTY_FORCE;
+    constraint = CH_STEP_PROJECT;
     timeStep = 0.001;
     NewtonMaxIters = 20;
     NewtonTolerance = 1e-8;
@@ -16,9 +16,9 @@ SimParameters::SimParameters()
     dampingStiffness = 1.0;
 
     clickMode = CM_ADDPARTICLE, CM_ADDSAW;
-    connector = CT_SPRING;
+    connector = CT_RIGID_ROD;
     particleMass = 1.0;
-    particleFixed = false;
+    particleFixed = true;
     maxSpringDist = 0.25;
     sawRadius= 0.01;
 

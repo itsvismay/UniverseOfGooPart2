@@ -277,10 +277,6 @@ void Simulation::computeForceAndHessian(const VectorXd &q, const VectorXd &qprev
         processPenaltyForce(q, F);
 
     H.setFromTriplets(Hcoeffs.begin(), Hcoeffs.end());
-//    cout<<"\nQ : "<<q;
-//    cout<<"\nH : "<<H;
-//    cout<<"\nF : "<<F;
-//    cout<<"\nH : "<<H;
 
 }
 
@@ -291,15 +287,15 @@ void Simulation::processPenaltyForce(const Eigen::VectorXd &q, Eigen::VectorXd &
         Vector2d particle1 = q.segment<2>(2*it->p1);
         Vector2d particle2 = q.segment<2>(2*it->p2);
         double dist = (particle2 - particle1).norm();
-        int index1 = it->p1;
-        int index2 = it->p2;
+        int i1 = it->p1;
+        int i2 = it->p2;
 
         double localFx = 4 * params_.penaltyStiffness  * (dist*dist - it->restlen*it->restlen) * (particle2[0] - particle1[0]);
         double localFy = 4 * params_.penaltyStiffness  * (dist*dist - it->restlen*it->restlen) * (particle2[1] - particle1[1]);
-        F[index1*2] += localFx;
-        F[index1*2+1] += localFy;
-        F[index2*2] -= localFx;
-        F[index2*2+1] -= localFy;
+        F[i1*2] += localFx;
+        F[i1*2+1] += localFy;
+        F[i2*2] -= localFx;
+        F[i2*2+1] -= localFy;
     }
 }
 
@@ -430,72 +426,142 @@ void Simulation::numericalIntegration(VectorXd &q, VectorXd &qprev, VectorXd &v)
 
     VectorXd oldq = q;
     q += params_.timeStep*v;
+    if(params_.constraint == SimParameters::CH_STEP_PROJECT)
+    {
+        computeStepProject(q, oldq, v);
+    }
+    else if(params_.constraint == SimParameters::CH_LAGRANGE)
+    {
+        computerLagrange(q,)
+    }
     computeForceAndHessian(q, oldq, F, H);
     v += params_.timeStep*Minv*F;
 
-//    switch(params_.integrator)
-//    {
-//    case SimParameters::TI_EXPLICIT_EULER:
-//    {
-//        computeForceAndHessian(q, qprev, F, H);
-//        q += params_.timeStep*v;
-//        v += params_.timeStep*Minv*F;
-//        break;
-//    }
-//    case SimParameters::TI_VELOCITY_VERLET:
-//    {
-//        VectorXd oldq = q;
-//        q += params_.timeStep*v;
-//        computeForceAndHessian(q, oldq, F, H);
-//        v += params_.timeStep*Minv*F;
-//        break;
-//    }
-//    case SimParameters::TI_IMPLICIT_EULER:
-//    {
-//        VectorXd guess = q;
-//        int iter=0;
-//        for(iter = 0; iter < params_.NewtonMaxIters; iter++)
-//        {
-//            computeForceAndHessian(guess, q, F, H);
-//            VectorXd fval = guess - q - params_.timeStep*v - params_.timeStep*params_.timeStep*Minv*F;
-//            if(fval.norm() < params_.NewtonTolerance)
-//            {
-//                break;
-//            }
-//            SparseMatrix<double> I(q.size(), q.size());
-//            I.setIdentity();
-//            SparseMatrix<double> Hf = I + params_.timeStep*params_.timeStep*Minv*H;
-//            BiCGSTAB<SparseMatrix<double> > solver;
-//            solver.compute(Hf);
-//            VectorXd deltaguess = solver.solve(-fval);
-//            guess += deltaguess;
-//        }
-//        v = (guess-q)/params_.timeStep;
-//        q = guess;
-//        break;
-//    }
-//    case SimParameters::TI_IMPLICIT_MIDPOINT:
-//    {
-//        VectorXd guess = q;
-//        for(int iter = 0; iter < params_.NewtonMaxIters; iter++)
-//        {
-//            computeForceAndHessian(0.5*(guess+q), 0.5*(q+qprev), F, H);
-//            VectorXd fval = guess - q - params_.timeStep*v - params_.timeStep*params_.timeStep*Minv*F/2.0;
-//            if(fval.norm() < params_.NewtonTolerance)
-//                break;
-//            SparseMatrix<double> I(q.size(), q.size());
-//            I.setIdentity();
-//            SparseMatrix<double> Hf = I + params_.timeStep*params_.timeStep*Minv*H/4.0;
-//            BiCGSTAB<SparseMatrix<double> > solver;
-//            solver.compute(Hf);
-//            VectorXd deltaguess = solver.solve(-fval);
-//            guess += deltaguess;
-//        }
-//        v = 2.0*(guess-q)/params_.timeStep - v;
-//        q = guess;
-//        break;
-//    }
-//    }
+}
+
+void Simulation::computeStepProject(VectorXd &q, VectorXd &oldq, VectorXd &v)
+{
+    VectorXd qTilda = q;
+    VectorXd lambda(rods_.size());
+    SparseMatrix<double> massInv(q.rows(), q.rows());
+    massInv.setZero();
+    this->computeMassInverse(massInv);
+    lambda.setZero();
+
+    for(int i = 0; i < params_.NewtonMaxIters; i++)
+    {
+
+        VectorXd fx(qTilda.rows() + rods_.size());
+        fx.setZero();
+        for(int i = 0; i < rods_.size(); i++)
+        {
+            int x1 = rods_[i].p1 *2;
+            int y1 = rods_[i].p1 *2+1;
+            int x2 = rods_[i].p2 *2;
+            int y2 = rods_[i].p2 *2+1;
+            fx[x1] += lambda[i] * massInv.coeff(x1, x1) * (qTilda[x2] - qTilda[x1]) *2;
+            fx[y1] += lambda[i] * massInv.coeff(x1, x1) * (qTilda[y2] - qTilda[y1]) *2;
+            fx[x2] += lambda[i] * massInv.coeff(x2, x2) * (qTilda[x1] - qTilda[x2]) *2;
+            fx[y2] += lambda[i] * massInv.coeff(x2, x2) * (qTilda[y1] - qTilda[y2]) *2;
+        }
+        VectorXd xDiff(qTilda.rows());
+        xDiff.setZero();
+        xDiff = q - qTilda;
+        // cout << "\n\nxDiff " << xDiff << endl << endl;
+        for(int i =0; i < xDiff.rows(); i++)
+        {
+            fx[i] += xDiff[i];
+        }
+
+        for(int i = 0; i < rods_.size(); i++)
+        {
+            Vector2d dstpos(qTilda[rods_[i].p1*2], qTilda[rods_[i].p1*2+1]);
+            Vector2d srcpos(qTilda[rods_[i].p2*2], qTilda[rods_[i].p2*2+1]);
+            double dist = (dstpos-srcpos).norm();
+            fx[i+qTilda.rows()] += dist*dist - rods_[i].restlen*rods_[i].restlen;
+        }
+        if(fx.norm() < params_.NewtonTolerance)
+        {
+            break;
+        }
+        SparseMatrix<double> forceGradient(qTilda.rows()+rods_.size(), qTilda.rows()+rods_.size());
+        forceGradient.setZero();
+
+        //calculate top left of force gradient
+        SparseMatrix<double> deltaFTopLeft(qTilda.rows(), qTilda.rows());
+        deltaFTopLeft.setIdentity();
+        double df1dx1, df1dx2,
+        df2dy1, df2dy2,
+        df3dx1, df3dx2,
+        df4dy1, df4dy2;
+        for(int i=0; i<rods_.size(); i++)
+        {
+            int p1 = rods_[i].p1*2;
+            int p2 = rods_[i].p2*2;
+            df1dx1 = -2*lambda[i]*massInv.coeff(p1, p1);
+            df1dx2 = -df1dx1;
+            df2dy1 = df1dx1;
+            df2dy2 = -df2dy1;
+
+            df3dx1 = 2*lambda[i]*massInv.coeff(p2, p2);
+            df3dx2 = -df3dx1;
+            df4dy1 = df3dx1;
+            df4dy2 = -df4dy1;
+            deltaFTopLeft.coeffRef(p1, p1) += df1dx1;
+            deltaFTopLeft.coeffRef(p1, p2) += df1dx2;
+            deltaFTopLeft.coeffRef(p1 +1, p1 +1) +=df2dy1;
+            deltaFTopLeft.coeffRef(p1 +1, p2 +1) += df2dy2;
+            deltaFTopLeft.coeffRef(p2 , p1) += df3dx1;
+            deltaFTopLeft.coeffRef(p2, p2) += df3dx2;
+            deltaFTopLeft.coeffRef(p2 +1, p1 +1) += df4dy1;
+            deltaFTopLeft.coeffRef(p2 +1, p2 +1) += df4dy2;
+        }
+        for(int i = 0; i < deltaFTopLeft.rows(); i++)
+        {
+            for(int j = 0; j < deltaFTopLeft.cols(); j++)
+            {
+                forceGradient.coeffRef(i,j) = deltaFTopLeft.coeff(i,j);
+            }
+        }
+        //calc top right and bottom left of force grad
+        for(int i = 0; i < rods_.size(); i++)
+        {
+            int n = i+qTilda.rows();
+            int x1 = rods_[i].p1 *2;
+            int y1 = rods_[i].p1 *2+1;
+            int x2 = rods_[i].p2 *2;
+            int y2 = rods_[i].p2 *2+1;
+            double gx1 = (qTilda[x2] - qTilda[x1]) *2;
+            double gy1 = (qTilda[y2] - qTilda[y1]) *2;
+            double gx2 = (qTilda[x1] - qTilda[x2]) *2;
+            double gy2 = (qTilda[y1] - qTilda[y2]) *2;
+            forceGradient.coeffRef(n,x1) += gx1;
+            forceGradient.coeffRef(n,y1) += gy1;
+            forceGradient.coeffRef(n,x2) += gx2;
+            forceGradient.coeffRef(n,y2) += gy2;
+            forceGradient.coeffRef(x1,n) += gx1;
+            forceGradient.coeffRef(y1,n) += gy1;
+            forceGradient.coeffRef(x2,n) += gx2;
+            forceGradient.coeffRef(y2,n) += gy2;
+        }
+        forceGradient.makeCompressed();
+        SparseQR<SparseMatrix<double>, COLAMDOrdering<int> > solver;
+        solver.compute(forceGradient);
+        VectorXd deltaguess = solver.solve(-fx);
+        // cout << "deltaGuess " << deltaguess << endl;
+        for(int i = 0; i < qTilda.rows(); i++)
+        {
+            qTilda[i] -= deltaguess[i];
+        }
+        int n = qTilda.rows();
+        for(int i = 0; i < lambda.rows(); i++)
+        {
+            lambda[i] += deltaguess[i+n];
+        }
+    }
+    q = qTilda;
+    v = (q - oldq) / params_.timeStep;
+
 }
 
 void Simulation::pruneOverstrainedSprings()
@@ -505,13 +571,15 @@ void Simulation::pruneOverstrainedSprings()
     vector<int> toremove;
     for(int i=0; i<nsprings; i++)
     {
-        Vector2d srcpos = particles_[springs_[i].p1].pos;
-        Vector2d dstpos = particles_[springs_[i].p2].pos;
-        double dist = (dstpos-srcpos).norm();
+        Vector2d p1 = particles_[springs_[i].p1].pos;
+        Vector2d p2 = particles_[springs_[i].p2].pos;
+        double d = (p2-p1).norm();
 
-        double strain = (dist - springs_[i].restlen)/springs_[i].restlen;
+        double strain = (d - springs_[i].restlen)/springs_[i].restlen;
         if(!springs_[i].unsnappable && strain > params_.maxSpringStrain)
+        {
             toremove.push_back(i);
+        }
     }
 
     renderLock_.lock();
