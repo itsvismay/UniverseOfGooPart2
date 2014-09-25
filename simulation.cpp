@@ -2,6 +2,7 @@
 #include <QGLWidget>
 #include "simparameters.h"
 #include <iostream>
+#include <Eigen/Geometry>
 
 const double PI = 3.1415926535898;
 
@@ -198,12 +199,14 @@ void Simulation::addParticle(double x, double y)
                     for (j=2; j<=rodSegs - 1; j++)
                     {
 //                        cout<<particles_.size()<<endl;
+                        cout<< "Adding hinge in loop"<<endl;
                         newInertParticlePos = (distanceToMove * j) + pos;
                         springs_.push_back(Spring(particles_.size(), particles_.size() - 1, springStiffness, springLength, springMass, true));
                         particles_.push_back(Particle(newInertParticlePos, springMass, false, true));
                         hingeStiffness = (params_.rodBendingStiffness * 2)/(springs_[springs_.size() - 1].restlen + springs_[springs_.size() - 2].restlen);
                         hinges_.push_back(Hinge(springs_.size() - 1, springs_.size() - 2, hingeStiffness));
                     }
+                    cout<< "Adding hinge outside"<<endl;
                     springs_.push_back(Spring(newParticleIndex, particles_.size() - 1, springStiffness, springLength, springMass, true));
                     hingeStiffness = (params_.rodBendingStiffness * 2)/(springs_[springs_.size() - 1].restlen + springs_[springs_.size() - 2].restlen);
                     hinges_.push_back(Hinge(springs_.size() - 1, springs_.size() - 2, hingeStiffness));
@@ -278,11 +281,71 @@ void Simulation::computeForceAndHessian(const VectorXd &q, const VectorXd &qprev
         processDampingForce(q, qprev, F, Hcoeffs);
     if(params_.activeForces & SimParameters::F_FLOOR)
         processFloorForce(q, qprev, F, Hcoeffs);
+    if(params_.activeForces == SimParameters::F_ELASTIC)
+        processElasticBendingForce(q, F);
     if(params_.constraint == SimParameters::CH_PENALTY_FORCE)
         processPenaltyForce(q, F);
 
     H.setFromTriplets(Hcoeffs.begin(), Hcoeffs.end());
 
+}
+
+void Simulation::processElasticBendingForce(const VectorXd &q, VectorXd &F)
+{
+    Vector3d pi,pj,pk,zUnit;
+    zUnit.setZero();
+    zUnit[2] = 1;
+    int s1Id, s2Id, piIndex, pjIndex, pkIndex;
+
+    for (int i; i<hinges_.size(); i++)
+    {
+        pi.setZero();
+        pj.setZero();
+        pk.setZero();
+        s1Id = hinges_[i].s1;
+        s2Id = hinges_[i].s2;
+
+        if (springs_[s1Id].p1 == springs_[s2Id].p1)
+        {
+            pj.segment<2>(0) = q.segment<2>(springs_[s1Id].p1*2);
+            pi.segment<2>(0) = q.segment<2>(springs_[s1Id].p2*2);
+            pk.segment<2>(0) = q.segment<2>(springs_[s2Id].p2*2);
+            pjIndex = springs_[s1Id].p1;
+            piIndex = springs_[s1Id].p2;
+            pkIndex = springs_[s2Id].p2;
+        }
+        else if (springs_[s1Id].p1 == springs_[s2Id].p2)
+        {
+            pj.segment<2>(0) = q.segment<2>(springs_[s1Id].p1*2);
+            pi.segment<2>(0) = q.segment<2>(springs_[s1Id].p2*2);
+            pk.segment<2>(0) = q.segment<2>(springs_[s2Id].p1*2);
+            pjIndex = springs_[s1Id].p1;
+            piIndex = springs_[s1Id].p2;
+            pkIndex = springs_[s2Id].p1;
+        }
+        else if (springs_[s1Id].p2 == springs_[s2Id].p1)
+        {
+            pj.segment<2>(0) = q.segment<2>(springs_[s1Id].p2*2);
+            pi.segment<2>(0) = q.segment<2>(springs_[s1Id].p1*2);
+            pk.segment<2>(0) = q.segment<2>(springs_[s2Id].p2*2);
+            pjIndex = springs_[s1Id].p2;
+            piIndex = springs_[s1Id].p1;
+            pkIndex = springs_[s2Id].p2;
+        }
+        else if (springs_[s1Id].p2 == springs_[s2Id].p2)
+        {
+            pj.segment<2>(0) = q.segment<2>(springs_[s1Id].p2*2);
+            pi.segment<2>(0) = q.segment<2>(springs_[s1Id].p1*2);
+            pk.segment<2>(0) = q.segment<2>(springs_[s2Id].p1*2);
+            pjIndex = springs_[s1Id].p2;
+            piIndex = springs_[s1Id].p1;
+            pkIndex = springs_[s2Id].p1;
+        }
+        Vector3d t = pi.cross(pj).col(0);
+    }
+//    cout<<"\n\nPi : "<<pi;
+//    cout<<"\n\nPj : "<<pj;
+//    cout<<"\n\nPk : "<<pk;
 }
 
 void Simulation::processPenaltyForce(const Eigen::VectorXd &q, Eigen::VectorXd &F)
@@ -322,10 +385,6 @@ void Simulation::processSpringForce(const VectorXd &q, VectorXd &F, std::vector<
 
     for(int i=0; i<nsprings; i++)
     {
-        if (springs_[i].unsnappable)
-        {
-            continue;
-        }
         Vector2d p1 = q.segment<2>(2*springs_[i].p1);
         Vector2d p2 = q.segment<2>(2*springs_[i].p2);
         double dist = (p2-p1).norm();
@@ -575,9 +634,11 @@ void Simulation::computeStepProject(VectorXd &q, VectorXd &oldq, VectorXd &v)
 
 void Simulation::pruneOverstrainedSprings()
 {
-    int nsprings = springs_.size();
+    set<int> springstodelete;
 
-    vector<int> toremove;
+    vector<Spring> newsprings;
+    vector<int> remainingspringmap;
+    int nsprings = springs_.size();
     for(int i=0; i<nsprings; i++)
     {
         Vector2d p1 = particles_[springs_[i].p1].pos;
@@ -587,14 +648,38 @@ void Simulation::pruneOverstrainedSprings()
         double strain = (d - springs_[i].restlen)/springs_[i].restlen;
         if(!springs_[i].unsnappable && strain > params_.maxSpringStrain)
         {
-            toremove.push_back(i);
+            springstodelete.insert(i);
         }
     }
 
     renderLock_.lock();
     {
-        for(vector<int>::reverse_iterator it = toremove.rbegin(); it != toremove.rend(); ++it)
-            springs_.erase(springs_.begin() + *it);
+        if(!springstodelete.empty())
+        {
+            for(int i=0; i<(int)springs_.size(); i++)
+            {
+                if(springstodelete.count(i) == 0)
+                {
+                    remainingspringmap.push_back(newsprings.size());
+                    newsprings.push_back(springs_[i]);
+                }
+                else
+                {
+                    remainingspringmap.push_back(-1);
+                }
+            }
+        }
+        if(!springstodelete.empty())
+        {
+            springs_ = newsprings;
+            for(vector<Hinge>::iterator hinge = hinges_.begin(); hinge != hinges_.end(); ++hinge)
+            {
+                hinge->s1 = remainingspringmap[hinge->s1];
+                hinge->s2 = remainingspringmap[hinge->s2];
+            }
+        }
+//        for(vector<int>::reverse_iterator it = toremove.rbegin(); it != toremove.rend(); ++it)
+//            springs_.erase(springs_.begin() + *it);
     }
     renderLock_.unlock();
 }
@@ -630,6 +715,8 @@ void Simulation::detectSawedSprings(std::set<int> &springsToDelete, std::set<int
             double sawspringdist = ptSegmentDist(sawpos, pos1, pos2);
             if(sawspringdist <= sawr)
             {
+                particles_[springs_[i].p1].mass -= springs_[i].mass/2;
+                particles_[springs_[i].p2].mass -= springs_[i].mass/2;
                 springsToDelete.insert(i);
                 for(int j=0; j<(int)hinges_.size(); j++)
                 {
