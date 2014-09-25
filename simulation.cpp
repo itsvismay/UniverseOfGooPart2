@@ -493,143 +493,148 @@ void Simulation::numericalIntegration(VectorXd &q, VectorXd &qprev, VectorXd &v)
     computeMassInverse(Minv);
 
     VectorXd oldq = q;
-    q += params_.timeStep*v;
-    if(params_.constraint == SimParameters::CH_STEP_PROJECT)
+    if(params_.constraint == SimParameters::CH_PENALTY_FORCE)
     {
+        q += params_.timeStep*v;
+        computeForceAndHessian(q, oldq, F, H);
+        v += params_.timeStep*Minv*F;
+    }
+    else if(params_.constraint == SimParameters::CH_STEP_PROJECT)
+    {
+        q += params_.timeStep*v;
+        computeForceAndHessian(q, oldq, F, H);
+        v += params_.timeStep*Minv*F;
         computeStepProject(q, oldq, v);
     }
     else if(params_.constraint == SimParameters::CH_LAGRANGE)
     {
         //computerLagrange(q,)
     }
-    computeForceAndHessian(q, oldq, F, H);
-    v += params_.timeStep*Minv*F;
 
 }
 
 void Simulation::computeStepProject(VectorXd &q, VectorXd &oldq, VectorXd &v)
 {
-    VectorXd qTilda = q;
-    VectorXd lambda(rods_.size());
-    SparseMatrix<double> massInv(q.rows(), q.rows());
-    massInv.setZero();
-    this->computeMassInverse(massInv);
-    lambda.setZero();
+    VectorXd qGuess = q;
+    VectorXd lamGuess(rods_.size());
+    lamGuess.setZero();
+    SparseMatrix<double> massInverseMatrix(q.rows(), q.rows());
+    massInverseMatrix.setZero();
+    computeMassInverse(massInverseMatrix);
+    VectorXd forceX(qGuess.rows() + rods_.size());
 
     for(int i = 0; i < params_.NewtonMaxIters; i++)
     {
-
-        VectorXd fx(qTilda.rows() + rods_.size());
-        fx.setZero();
-        for(int i = 0; i < rods_.size(); i++)
+        forceX.setZero();
+        for(int j = 0; j < rods_.size(); j++)
         {
-            int x1 = rods_[i].p1 *2;
-            int y1 = rods_[i].p1 *2+1;
-            int x2 = rods_[i].p2 *2;
-            int y2 = rods_[i].p2 *2+1;
-            fx[x1] += lambda[i] * massInv.coeff(x1, x1) * (qTilda[x2] - qTilda[x1]) *2;
-            fx[y1] += lambda[i] * massInv.coeff(x1, x1) * (qTilda[y2] - qTilda[y1]) *2;
-            fx[x2] += lambda[i] * massInv.coeff(x2, x2) * (qTilda[x1] - qTilda[x2]) *2;
-            fx[y2] += lambda[i] * massInv.coeff(x2, x2) * (qTilda[y1] - qTilda[y2]) *2;
-        }
-        VectorXd xDiff(qTilda.rows());
-        xDiff.setZero();
-        xDiff = q - qTilda;
-        // cout << "\n\nxDiff " << xDiff << endl << endl;
-        for(int i =0; i < xDiff.rows(); i++)
-        {
-            fx[i] += xDiff[i];
+            int p1pos = rods_[j].p1*2;
+            int p2pos = rods_[j].p2*2;
+            Vector2d p1 = qGuess.segment<2>(2*rods_[j].p1);
+            Vector2d p2 = qGuess.segment<2>(2*rods_[j].p2);
+            forceX.segment<2>(rods_[j].p1*2) += lamGuess[j] * massInverseMatrix.coeff(p1pos, p1pos) * (p2 - p1) * 2;
+            forceX.segment<2>(rods_[j].p2*2) += lamGuess[j] * massInverseMatrix.coeff(p2pos, p2pos) * (p1 - p2) * 2;
         }
 
-        for(int i = 0; i < rods_.size(); i++)
+        VectorXd qDifference(qGuess.rows());
+        qDifference.setZero();
+        qDifference = q - qGuess;
+        for(int j =0; j < qDifference.rows(); j++)
         {
-            Vector2d dstpos(qTilda[rods_[i].p1*2], qTilda[rods_[i].p1*2+1]);
-            Vector2d srcpos(qTilda[rods_[i].p2*2], qTilda[rods_[i].p2*2+1]);
+            forceX[j] += qDifference[j];
+        }
+
+        for(int j = 0; j < rods_.size(); j++)
+        {
+            Vector2d dstpos(qGuess[rods_[j].p1*2], qGuess[rods_[j].p1*2+1]);
+            Vector2d srcpos(qGuess[rods_[j].p2*2], qGuess[rods_[j].p2*2+1]);
             double dist = (dstpos-srcpos).norm();
-            fx[i+qTilda.rows()] += dist*dist - rods_[i].restlen*rods_[i].restlen;
+            forceX[j+qGuess.rows()] += dist*dist - rods_[j].restlen*rods_[j].restlen;
         }
-        if(fx.norm() < params_.NewtonTolerance)
+        if(forceX.norm() < params_.NewtonTolerance)
         {
             break;
         }
-        SparseMatrix<double> forceGradient(qTilda.rows()+rods_.size(), qTilda.rows()+rods_.size());
+
+        // GRADIENT CALCULATION
+
+        SparseMatrix<double> forceGradient(qGuess.rows()+rods_.size(), qGuess.rows()+rods_.size());
         forceGradient.setZero();
 
-        //calculate top left of force gradient
-        SparseMatrix<double> deltaFTopLeft(qTilda.rows(), qTilda.rows());
-        deltaFTopLeft.setIdentity();
-        double df1dx1, df1dx2,
-        df2dy1, df2dy2,
-        df3dx1, df3dx2,
-        df4dy1, df4dy2;
-        for(int i=0; i<rods_.size(); i++)
+        // Calculating Top Left of Force Gradient Matrix
+        vector< Triplet<double> > topLeftTriplets;
+        topLeftTriplets.reserve(rods_.size()*8);
+        double dfxidxi, dfxidxj, dfyidyi, dfyidyj, dfxjdxi, dfxjdxj, dfyjdyi, dfyjdyj;
+        for(int j=0; j<rods_.size(); j++)
         {
-            int p1 = rods_[i].p1*2;
-            int p2 = rods_[i].p2*2;
-            df1dx1 = -2*lambda[i]*massInv.coeff(p1, p1);
-            df1dx2 = -df1dx1;
-            df2dy1 = df1dx1;
-            df2dy2 = -df2dy1;
+            int p1pos = rods_[j].p1*2;
+            int p2pos = rods_[j].p2*2;
+            dfxidxi = -2*lamGuess[j]*massInverseMatrix.coeff(p1pos, p1pos);
+            dfxidxj = -dfxidxi;
+            dfyidyi = dfxidxi;
+            dfyidyj = -dfyidyi;
 
-            df3dx1 = 2*lambda[i]*massInv.coeff(p2, p2);
-            df3dx2 = -df3dx1;
-            df4dy1 = df3dx1;
-            df4dy2 = -df4dy1;
-            deltaFTopLeft.coeffRef(p1, p1) += df1dx1;
-            deltaFTopLeft.coeffRef(p1, p2) += df1dx2;
-            deltaFTopLeft.coeffRef(p1 +1, p1 +1) +=df2dy1;
-            deltaFTopLeft.coeffRef(p1 +1, p2 +1) += df2dy2;
-            deltaFTopLeft.coeffRef(p2 , p1) += df3dx1;
-            deltaFTopLeft.coeffRef(p2, p2) += df3dx2;
-            deltaFTopLeft.coeffRef(p2 +1, p1 +1) += df4dy1;
-            deltaFTopLeft.coeffRef(p2 +1, p2 +1) += df4dy2;
+            dfxjdxi = 2*lamGuess[j]*massInverseMatrix.coeff(p2pos, p2pos);
+            dfxjdxj = -dfxjdxi;
+            dfyjdyi = dfxjdxi;
+            dfyjdyj = -dfyjdyi;
+            topLeftTriplets.push_back(Triplet<double>(p1pos, p1pos, dfxidxi));
+            topLeftTriplets.push_back(Triplet<double>(p1pos, p2pos, dfxidxj));
+            topLeftTriplets.push_back(Triplet<double>(p1pos + 1, p1pos + 1, dfyidyi));
+            topLeftTriplets.push_back(Triplet<double>(p1pos + 1, p2pos + 1, dfyidyj));
+
+            topLeftTriplets.push_back(Triplet<double>(p2pos, p1pos, dfxjdxi));
+            topLeftTriplets.push_back(Triplet<double>(p2pos, p2pos, dfxjdxj));
+            topLeftTriplets.push_back(Triplet<double>(p2pos + 1, p1pos + 1, dfyjdyi));
+            topLeftTriplets.push_back(Triplet<double>(p2pos + 1, p2pos + 1, dfyjdyj));
         }
-        for(int i = 0; i < deltaFTopLeft.rows(); i++)
+        SparseMatrix<double> topLeftMatrix(qGuess.rows(), qGuess.rows());
+        topLeftMatrix.setZero();
+        topLeftMatrix.setFromTriplets(topLeftTriplets.begin(), topLeftTriplets.end());
+        SparseMatrix<double> identity(qGuess.rows(), qGuess.rows());
+        identity.setIdentity();
+        topLeftMatrix += identity;
+        for(int j = 0; j < topLeftMatrix.rows(); j++)
         {
-            for(int j = 0; j < deltaFTopLeft.cols(); j++)
+            for(int k = 0; k < topLeftMatrix.cols(); k++)
             {
-                forceGradient.coeffRef(i,j) = deltaFTopLeft.coeff(i,j);
+                forceGradient.coeffRef(j,k) = topLeftMatrix.coeff(j,k);
             }
         }
-        //calc top right and bottom left of force grad
-        for(int i = 0; i < rods_.size(); i++)
+        // Calculating Top Right and Bottom Left of Force Gradient Matrix
+        for(int j = 0; j < rods_.size(); j++)
         {
-            int n = i+qTilda.rows();
-            int x1 = rods_[i].p1 *2;
-            int y1 = rods_[i].p1 *2+1;
-            int x2 = rods_[i].p2 *2;
-            int y2 = rods_[i].p2 *2+1;
-            double gx1 = (qTilda[x2] - qTilda[x1]) *2;
-            double gy1 = (qTilda[y2] - qTilda[y1]) *2;
-            double gx2 = (qTilda[x1] - qTilda[x2]) *2;
-            double gy2 = (qTilda[y1] - qTilda[y2]) *2;
-            forceGradient.coeffRef(n,x1) += gx1;
-            forceGradient.coeffRef(n,y1) += gy1;
-            forceGradient.coeffRef(n,x2) += gx2;
-            forceGradient.coeffRef(n,y2) += gy2;
-            forceGradient.coeffRef(x1,n) += gx1;
-            forceGradient.coeffRef(y1,n) += gy1;
-            forceGradient.coeffRef(x2,n) += gx2;
-            forceGradient.coeffRef(y2,n) += gy2;
+            int n = j + qGuess.rows();
+            int p1pos = rods_[j].p1 *2;
+            int p2pos = rods_[j].p2 *2;
+            Vector2d p1Grad = (qGuess.segment<2>(p2pos) - qGuess.segment<2>(p1pos)) * 2;
+            Vector2d p2Grad = (qGuess.segment<2>(p1pos) - qGuess.segment<2>(p2pos)) * 2;
+            forceGradient.coeffRef(n,p1pos) += p1Grad[0];
+            forceGradient.coeffRef(n,p1pos + 1) += p1Grad[1];
+            forceGradient.coeffRef(n,p2pos) += p2Grad[0];
+            forceGradient.coeffRef(n,p2pos + 1) += p2Grad[1];
+            forceGradient.coeffRef(p1pos,n) += p1Grad[0] * massInverseMatrix.coeff(p1pos,p1pos);
+            forceGradient.coeffRef(p1pos + 1,n) += p1Grad[1] * massInverseMatrix.coeff(p1pos,p1pos);
+            forceGradient.coeffRef(p2pos,n) += p2Grad[0] * massInverseMatrix.coeff(p2pos,p2pos);
+            forceGradient.coeffRef(p2pos + 1,n) += p2Grad[1] * massInverseMatrix.coeff(p2pos,p2pos);
         }
         forceGradient.makeCompressed();
         SparseQR<SparseMatrix<double>, COLAMDOrdering<int> > solver;
         solver.compute(forceGradient);
-        VectorXd deltaguess = solver.solve(-fx);
+        VectorXd deltaguess = solver.solve(-forceX);
         // cout << "deltaGuess " << deltaguess << endl;
-        for(int i = 0; i < qTilda.rows(); i++)
+        for(int j = 0; j < qGuess.rows(); j++)
         {
-            qTilda[i] -= deltaguess[i];
+            qGuess[j] -= deltaguess[j];
         }
-        int n = qTilda.rows();
-        for(int i = 0; i < lambda.rows(); i++)
+        int n = qGuess.rows();
+        for(int j = 0; j < lamGuess.rows(); j++)
         {
-            lambda[i] += deltaguess[i+n];
+            lamGuess[j] += deltaguess[j+n];
         }
     }
-    q = qTilda;
-    v = (q - oldq) / params_.timeStep;
-
+    v = v + (qGuess - q)/params_.timeStep;
+    q = qGuess;
 }
 
 void Simulation::pruneOverstrainedSprings()
@@ -678,8 +683,6 @@ void Simulation::pruneOverstrainedSprings()
                 hinge->s2 = remainingspringmap[hinge->s2];
             }
         }
-//        for(vector<int>::reverse_iterator it = toremove.rbegin(); it != toremove.rend(); ++it)
-//            springs_.erase(springs_.begin() + *it);
     }
     renderLock_.unlock();
 }
