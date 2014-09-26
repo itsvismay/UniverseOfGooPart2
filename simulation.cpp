@@ -76,7 +76,7 @@ void Simulation::render()
             if (it->unsnappable)
             {
                 glColor3f(0.752941, 0.752941, 0.752941);
-                glLineWidth(4);
+                glLineWidth(14);
             }
 
             glBegin(GL_LINES);
@@ -150,7 +150,6 @@ void Simulation::addParticle(double x, double y)
 {
     renderLock_.lock();
     {
-//        cout<<"\n Particles Start: "<<particles_.size();
         Vector2d newParticlePos(x,y);
         double particleMass = params_.particleMass;
         int newParticleIndex = particles_.size();
@@ -188,25 +187,20 @@ void Simulation::addParticle(double x, double y)
                     double springStiffness = params_.rodStretchStiffness/springLength;
                     double hingeStiffness = 0;
                     Vector2d unitVector = (newParticlePos - pos)/dist;
-                    //segmentNo * dist/segments
                     Vector2d distanceToMove = unitVector * (dist/rodSegs);
                     Vector2d newInertParticlePos = (distanceToMove * 1) + pos;
                     springs_.push_back(Spring(particles_.size(), i, springStiffness, springLength, springMass, true));
                     particles_.push_back(Particle(newInertParticlePos, springMass, false, true));
                     particles_[i].mass += springMass/2;
                     int j;
-//                    cout<<"\n Particle Size:";
                     for (j=2; j<=rodSegs - 1; j++)
                     {
-//                        cout<<particles_.size()<<endl;
-                        cout<< "Adding hinge in loop"<<endl;
                         newInertParticlePos = (distanceToMove * j) + pos;
                         springs_.push_back(Spring(particles_.size(), particles_.size() - 1, springStiffness, springLength, springMass, true));
                         particles_.push_back(Particle(newInertParticlePos, springMass, false, true));
                         hingeStiffness = (params_.rodBendingStiffness * 2)/(springs_[springs_.size() - 1].restlen + springs_[springs_.size() - 2].restlen);
                         hinges_.push_back(Hinge(springs_.size() - 1, springs_.size() - 2, hingeStiffness));
                     }
-                    cout<< "Adding hinge outside"<<endl;
                     springs_.push_back(Spring(newParticleIndex, particles_.size() - 1, springStiffness, springLength, springMass, true));
                     hingeStiffness = (params_.rodBendingStiffness * 2)/(springs_[springs_.size() - 1].restlen + springs_[springs_.size() - 2].restlen);
                     hinges_.push_back(Hinge(springs_.size() - 1, springs_.size() - 2, hingeStiffness));
@@ -226,7 +220,6 @@ void Simulation::addParticle(double x, double y)
         {
             particles_[newParticleIndex].mass = particleMass;
         }
-//        cout<<"\n Particles End: "<<particles_.size();
     }
     renderLock_.unlock();
 }
@@ -281,7 +274,7 @@ void Simulation::computeForceAndHessian(const VectorXd &q, const VectorXd &qprev
         processDampingForce(q, qprev, F, Hcoeffs);
     if(params_.activeForces & SimParameters::F_FLOOR)
         processFloorForce(q, qprev, F, Hcoeffs);
-    if(params_.activeForces == SimParameters::F_ELASTIC)
+    if(params_.activeForces & SimParameters::F_ELASTIC)
         processElasticBendingForce(q, F);
     if(params_.constraint == SimParameters::CH_PENALTY_FORCE)
         processPenaltyForce(q, F);
@@ -292,6 +285,7 @@ void Simulation::computeForceAndHessian(const VectorXd &q, const VectorXd &qprev
 
 void Simulation::processElasticBendingForce(const VectorXd &q, VectorXd &F)
 {
+    cout<<"Elastic Bending Begin"<<endl;
     Vector3d pi,pj,pk,zUnit;
     zUnit.setZero();
     zUnit[2] = 1;
@@ -341,7 +335,24 @@ void Simulation::processElasticBendingForce(const VectorXd &q, VectorXd &F)
             piIndex = springs_[s1Id].p1;
             pkIndex = springs_[s2Id].p1;
         }
-        Vector3d t = pi.cross(pj).col(0);
+        double y = ((pj - pi).cross(pk - pj)).dot(zUnit);
+        double x = ((pj - pi).norm() * (pk - pj).norm()) + ((pj - pi).dot(pj - pk));
+        double theta = 2 * atan2(y, x);
+        Vector3d Fi = (hinges_[i].stiffness * theta * (pj - pi).cross(zUnit)) / (pj - pi).norm();
+        Vector3d Fk = (hinges_[i].stiffness * theta * (pk - pj).cross(zUnit)) / (pk - pj).norm();
+        cout<<"\nPi : "<<pi<<endl;
+        cout<<"\nPj : "<<pj<<endl;
+        cout<<"\nPk : "<<pk<<endl;
+        cout<<"\n Stiffness: "<<hinges_[i].stiffness<<endl;
+        cout<<"\nTheta : "<<theta<<endl;
+        cout<<"\n Pj-pi cross z : "<<(pj - pi).cross(zUnit)<<endl;
+        cout<<"\n Pj - Pi squared norm: "<<(pj-pi).norm()<<endl;
+        cout<<"\nFi : "<<Fi<<endl;
+        cout<<"\nFj : "<<(-Fi-Fk)<<endl;
+        cout<<"\nFk : "<<Fk<<endl;
+        F.segment<2>(piIndex * 2) += Fi.segment<2>(0);
+        F.segment<2>(pkIndex * 2) += Fk.segment<2>(0);
+        F.segment<2>(pjIndex * 2) += (-Fi-Fk).segment<2>(0);
     }
 //    cout<<"\n\nPi : "<<pi;
 //    cout<<"\n\nPj : "<<pj;
@@ -510,7 +521,6 @@ void Simulation::numericalIntegration(VectorXd &q, VectorXd &qprev, VectorXd &v)
     {
         //computerLagrange(q,)
     }
-
 }
 
 void Simulation::computeStepProject(VectorXd &q, VectorXd &oldq, VectorXd &v)
