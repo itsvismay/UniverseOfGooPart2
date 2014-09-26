@@ -53,7 +53,7 @@ void Simulation::render()
             Vector2d sourcepos = particles_[it->p1].pos;
             Vector2d destpos   = particles_[it->p2].pos;
 
-            double dist = (sourcepos-destpos).norm();
+//            double dist = (sourcepos-destpos).norm();
 
             glLineWidth(8);
 
@@ -285,7 +285,6 @@ void Simulation::computeForceAndHessian(const VectorXd &q, const VectorXd &qprev
 
 void Simulation::processElasticBendingForce(const VectorXd &q, VectorXd &F)
 {
-    cout<<"Elastic Bending Begin"<<endl;
     Vector3d pi,pj,pk,zUnit;
     zUnit.setZero();
     zUnit[2] = 1;
@@ -336,27 +335,14 @@ void Simulation::processElasticBendingForce(const VectorXd &q, VectorXd &F)
             pkIndex = springs_[s2Id].p1;
         }
         double y = ((pj - pi).cross(pk - pj)).dot(zUnit);
-        double x = ((pj - pi).norm() * (pk - pj).norm()) + ((pj - pi).dot(pj - pk));
+        double x = ((pj - pi).norm() * (pk - pj).norm()) + ((pj - pi).dot(pk - pj));
         double theta = 2 * atan2(y, x);
-        Vector3d Fi = (hinges_[i].stiffness * theta * (pj - pi).cross(zUnit)) / (pj - pi).norm();
-        Vector3d Fk = (hinges_[i].stiffness * theta * (pk - pj).cross(zUnit)) / (pk - pj).norm();
-        cout<<"\nPi : "<<pi<<endl;
-        cout<<"\nPj : "<<pj<<endl;
-        cout<<"\nPk : "<<pk<<endl;
-        cout<<"\n Stiffness: "<<hinges_[i].stiffness<<endl;
-        cout<<"\nTheta : "<<theta<<endl;
-        cout<<"\n Pj-pi cross z : "<<(pj - pi).cross(zUnit)<<endl;
-        cout<<"\n Pj - Pi squared norm: "<<(pj-pi).norm()<<endl;
-        cout<<"\nFi : "<<Fi<<endl;
-        cout<<"\nFj : "<<(-Fi-Fk)<<endl;
-        cout<<"\nFk : "<<Fk<<endl;
+        Vector3d Fi = (hinges_[i].stiffness * theta * (pj - pi).cross(zUnit)) / (pj - pi).squaredNorm();
+        Vector3d Fk = (hinges_[i].stiffness * theta * (pk - pj).cross(zUnit)) / (pk - pj).squaredNorm();
         F.segment<2>(piIndex * 2) += Fi.segment<2>(0);
         F.segment<2>(pkIndex * 2) += Fk.segment<2>(0);
         F.segment<2>(pjIndex * 2) += (-Fi-Fk).segment<2>(0);
     }
-//    cout<<"\n\nPi : "<<pi;
-//    cout<<"\n\nPj : "<<pj;
-//    cout<<"\n\nPk : "<<pk;
 }
 
 void Simulation::processPenaltyForce(const Eigen::VectorXd &q, Eigen::VectorXd &F)
