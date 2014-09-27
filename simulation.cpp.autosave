@@ -560,6 +560,7 @@ void Simulation::computeLagrangeMultipliers(const VectorXd &q, const VectorXd &F
             Vector2d temp1 = params_.timeStep * params_.timeStep * massInverseMatrix(p1pos, p1pos) * (p2-p1) * 2;
             Vector2d temp2 = params_.timeStep * params_.timeStep * massInverseMatrix(p2pos, p2pos) * (p1-p2) * 2;
             // TODO : Complete this
+
         }
 
         //Compute gradient of Fofx
