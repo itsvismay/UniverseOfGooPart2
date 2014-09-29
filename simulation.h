@@ -34,40 +34,61 @@ public:
 };
 
 
-struct Rod
+struct Connector
 {
-    Rod(int p1, int p2, double restlen) : p1(p1), p2(p2), restlen(restlen) {}
-
+public:
+    Connector(int p1, int p2, double restlen, double mass) : p1(p1), p2(p2), restlen(restlen), mass(mass) {}
+    Connector(int p1, int p2, double restlen) : p1(p1), p2(p2), restlen(restlen) {
+        mass = 0;
+    }
     int p1;
     int p2;
     double restlen;
+    double mass;
 };
 
-struct Hinge
+struct Rod: public Connector
 {
 public:
-    Hinge(int s1, int s2, double stiffness) : s1(s1), s2(s2), stiffness(stiffness) {}
+    Rod(int p1, int p2, double restlen) : Connector(p1, p2, restlen) {
+        isHinge = false;
+    }
+    Rod(int p1, int p2, double restlen, double mass, bool isHinge) : Connector(p1, p2, restlen, mass), isHinge(isHinge) {
+    }
+    bool isHinge;
+};
+
+struct FlexibleRodHinge
+{
+public:
+    FlexibleRodHinge(int s1, int s2, double stiffness) : s1(s1), s2(s2), stiffness(stiffness) {
+    }
 
     int s1;
     int s2;
     double stiffness;
 };
 
-struct Spring
+struct RopeHinge
 {
 public:
-    Spring(int p1, int p2, double stiffness, double restlen) : p1(p1), p2(p2), stiffness(stiffness), restlen(restlen) {
-        mass = 0;
+    RopeHinge(int s1, int s2, double stiffness) : s1(s1), s2(s2), stiffness(stiffness) {
+    }
+
+    int s1;
+    int s2;
+    double stiffness;
+};
+
+struct Spring: public Connector
+{
+public:
+    Spring(int p1, int p2, double stiffness, double restlen) : Connector(p1, p2, restlen), stiffness(stiffness) {
         unsnappable = false;
     }
-    Spring(int p1, int p2, double stiffness, double restlen, double mass, bool unsnappable) : p1(p1), p2(p2), stiffness(stiffness), restlen(restlen), mass(mass), unsnappable(unsnappable) {}
-
-    int p1;
-    int p2;
-    double stiffness;
-    double restlen;
-    double mass;
+    Spring(int p1, int p2, double stiffness, double restlen, double mass, bool unsnappable) : Connector(p1, p2, restlen, mass), stiffness(stiffness), unsnappable(unsnappable) {}
     bool unsnappable;
+    double stiffness;
 };
 
 struct Saw
@@ -98,7 +119,8 @@ private:
     double time_;
     std::vector<Particle> particles_;
     std::vector<Spring> springs_;
-    std::vector<Hinge> hinges_;
+    std::vector<FlexibleRodHinge> flexibleRodHinges_;
+    std::vector<RopeHinge> ropeHinges_;
     std::vector<Rod> rods_;
     std::vector<Saw> saws_;
 
@@ -125,7 +147,7 @@ private:
     void deleteSawedObjects();
     double ptSegmentDist(const Eigen::Vector2d &p, const Eigen::Vector2d &q1, const Eigen::Vector2d &q2);
     void detectSawedSprings(std::set<int> &springsToDelete, std::set<int> &hingesToDelete);
-    void detectSawedRods(std::set<int> &rodsToDelete);
+    void detectSawedRods(std::set<int> &rodsToDelete, std::set<int> &ropeHingesToDelete);
     void detectSawedParticles(std::set<int> &particlesToDelete);
 };
 

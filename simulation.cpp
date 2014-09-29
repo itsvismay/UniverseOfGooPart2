@@ -57,6 +57,12 @@ void Simulation::render()
 
             glLineWidth(8);
 
+            if (it->isHinge)
+            {
+                glColor3f(1.0, 1.0, 0.0);
+                glLineWidth(4);
+            }
+
             glBegin(GL_LINES);
             glVertex2f(sourcepos[0], sourcepos[1]);
             glVertex2f(destpos[0], destpos[1]);
@@ -150,10 +156,12 @@ void Simulation::addParticle(double x, double y)
 {
     renderLock_.lock();
     {
+        // Render the goals:
+//        if (gameMode)
         Vector2d newParticlePos(x,y);
         double particleMass = params_.particleMass;
         int newParticleIndex = particles_.size();
-        if (params_.connector == params_.CT_FLEXIBLE_ROD)
+        if (params_.connector == params_.CT_FLEXIBLE_ROD || params_.connector == params_.CT_ROPE)
         {
             particles_.push_back(Particle(newParticlePos, particleMass, params_.particleFixed, false));
         }
@@ -191,7 +199,7 @@ void Simulation::addParticle(double x, double y)
                     Vector2d newInertParticlePos = (distanceToMove * 1) + pos;
                     springs_.push_back(Spring(particles_.size(), i, springStiffness, springLength, springMass, true));
                     particles_.push_back(Particle(newInertParticlePos, springMass, false, true));
-                    particles_[i].mass += springMass/2;
+//                    particles_[i].mass += springMass/2;
                     int j;
                     for (j=2; j<=rodSegs - 1; j++)
                     {
@@ -199,12 +207,45 @@ void Simulation::addParticle(double x, double y)
                         springs_.push_back(Spring(particles_.size(), particles_.size() - 1, springStiffness, springLength, springMass, true));
                         particles_.push_back(Particle(newInertParticlePos, springMass, false, true));
                         hingeStiffness = (params_.rodBendingStiffness * 2)/(springs_[springs_.size() - 1].restlen + springs_[springs_.size() - 2].restlen);
-                        hinges_.push_back(Hinge(springs_.size() - 1, springs_.size() - 2, hingeStiffness));
+                        flexibleRodHinges_.push_back(FlexibleRodHinge(springs_.size() - 1, springs_.size() - 2, hingeStiffness));
                     }
                     springs_.push_back(Spring(newParticleIndex, particles_.size() - 1, springStiffness, springLength, springMass, true));
                     hingeStiffness = (params_.rodBendingStiffness * 2)/(springs_[springs_.size() - 1].restlen + springs_[springs_.size() - 2].restlen);
-                    hinges_.push_back(Hinge(springs_.size() - 1, springs_.size() - 2, hingeStiffness));
+                    flexibleRodHinges_.push_back(FlexibleRodHinge(springs_.size() - 1, springs_.size() - 2, hingeStiffness));
                     particleMass += springMass/2;
+                }
+                else if (params_.connector == params_.CT_ROPE)
+                {
+                    int rodSegs = params_.ropeSegments;
+                    if (rodSegs <= 1)
+                    {
+                        rodSegs = 2;
+                    }
+                    double rodLength = dist/rodSegs;
+                    double rodMass = params_.rodDensity * rodLength;
+//                    double springStiffness = params_.rodStretchStiffness/rodLength;
+                    double hingeStiffness = 0;
+                    Vector2d unitVector = (newParticlePos - pos)/dist;
+                    Vector2d distanceToMove = unitVector * (dist/rodSegs);
+                    Vector2d newInertParticlePos = (distanceToMove * 1) + pos;
+//                    springs_.push_back(Spring(particles_.size(), i, springStiffness, rodLength, rodMass, true));
+                    rods_.push_back(Rod(particles_.size(), i, rodLength, rodMass, true));
+                    particles_.push_back(Particle(newInertParticlePos, rodMass, false, true));
+                    int j;
+                    for (j=2; j<=rodSegs - 1; j++)
+                    {
+                        newInertParticlePos = (distanceToMove * j) + pos;
+//                        springs_.push_back(Spring(particles_.size(), particles_.size() - 1, springStiffness, rodLength, rodMass, true));
+                        rods_.push_back(Rod(particles_.size(), particles_.size() - 1, rodLength, rodMass, true));
+                        particles_.push_back(Particle(newInertParticlePos, rodMass, false, true));
+                        hingeStiffness = (params_.rodBendingStiffness * 2)/(rods_[rods_.size() - 1].restlen + rods_[rods_.size() - 2].restlen);
+                        ropeHinges_.push_back(RopeHinge(rods_.size() - 1, rods_.size() - 2, hingeStiffness));
+                    }
+//                    springs_.push_back(Spring(newParticleIndex, particles_.size() - 1, springStiffness, rodLength, rodMass, true));
+                    rods_.push_back(Rod(newParticleIndex, particles_.size() - 1, rodLength, rodMass, true));
+                    hingeStiffness = (params_.rodBendingStiffness * 2)/(rods_[rods_.size() - 1].restlen + rods_[rods_.size() - 2].restlen);
+                    ropeHinges_.push_back(RopeHinge(rods_.size() - 1, rods_.size() - 2, hingeStiffness));
+                    particleMass += rodMass/2;
                 }
             }
         }
@@ -212,7 +253,7 @@ void Simulation::addParticle(double x, double y)
         {
             particleMass = std::numeric_limits<double>::infinity();
         }
-        if (params_.connector != params_.CT_FLEXIBLE_ROD)
+        if (params_.connector != params_.CT_FLEXIBLE_ROD && params_.connector != params_.CT_ROPE)
         {
             particles_.push_back(Particle(newParticlePos, particleMass, params_.particleFixed, false));
         }
@@ -290,13 +331,13 @@ void Simulation::processElasticBendingForce(const VectorXd &q, VectorXd &F)
     zUnit[2] = 1;
     int s1Id, s2Id, piIndex, pjIndex, pkIndex;
 
-    for (int i; i<hinges_.size(); i++)
+    for (int i=0; i<flexibleRodHinges_.size(); i++)
     {
         pi.setZero();
         pj.setZero();
         pk.setZero();
-        s1Id = hinges_[i].s1;
-        s2Id = hinges_[i].s2;
+        s1Id = flexibleRodHinges_[i].s1;
+        s2Id = flexibleRodHinges_[i].s2;
 
         if (springs_[s1Id].p1 == springs_[s2Id].p1)
         {
@@ -337,8 +378,61 @@ void Simulation::processElasticBendingForce(const VectorXd &q, VectorXd &F)
         double y = ((pj - pi).cross(pk - pj)).dot(zUnit);
         double x = ((pj - pi).norm() * (pk - pj).norm()) + ((pj - pi).dot(pk - pj));
         double theta = 2 * atan2(y, x);
-        Vector3d Fi = (hinges_[i].stiffness * theta * (pj - pi).cross(zUnit)) / (pj - pi).squaredNorm();
-        Vector3d Fk = (hinges_[i].stiffness * theta * (pk - pj).cross(zUnit)) / (pk - pj).squaredNorm();
+        Vector3d Fi = (flexibleRodHinges_[i].stiffness * theta * (pj - pi).cross(zUnit)) / (pj - pi).squaredNorm();
+        Vector3d Fk = (flexibleRodHinges_[i].stiffness * theta * (pk - pj).cross(zUnit)) / (pk - pj).squaredNorm();
+        F.segment<2>(piIndex * 2) += Fi.segment<2>(0);
+        F.segment<2>(pkIndex * 2) += Fk.segment<2>(0);
+        F.segment<2>(pjIndex * 2) += (-Fi-Fk).segment<2>(0);
+    }
+    for (int i=0; i<ropeHinges_.size(); i++)
+    {
+        pi.setZero();
+        pj.setZero();
+        pk.setZero();
+        s1Id = ropeHinges_[i].s1;
+        s2Id = ropeHinges_[i].s2;
+
+        if (rods_[s1Id].p1 == rods_[s2Id].p1)
+        {
+            pj.segment<2>(0) = q.segment<2>(rods_[s1Id].p1*2);
+            pi.segment<2>(0) = q.segment<2>(rods_[s1Id].p2*2);
+            pk.segment<2>(0) = q.segment<2>(rods_[s2Id].p2*2);
+            pjIndex = rods_[s1Id].p1;
+            piIndex = rods_[s1Id].p2;
+            pkIndex = rods_[s2Id].p2;
+        }
+        else if (rods_[s1Id].p1 == rods_[s2Id].p2)
+        {
+            pj.segment<2>(0) = q.segment<2>(rods_[s1Id].p1*2);
+            pi.segment<2>(0) = q.segment<2>(rods_[s1Id].p2*2);
+            pk.segment<2>(0) = q.segment<2>(rods_[s2Id].p1*2);
+            pjIndex = rods_[s1Id].p1;
+            piIndex = rods_[s1Id].p2;
+            pkIndex = rods_[s2Id].p1;
+        }
+        else if (rods_[s1Id].p2 == rods_[s2Id].p1)
+        {
+            pj.segment<2>(0) = q.segment<2>(rods_[s1Id].p2*2);
+            pi.segment<2>(0) = q.segment<2>(rods_[s1Id].p1*2);
+            pk.segment<2>(0) = q.segment<2>(rods_[s2Id].p2*2);
+            pjIndex = rods_[s1Id].p2;
+            piIndex = rods_[s1Id].p1;
+            pkIndex = rods_[s2Id].p2;
+        }
+        else if (rods_[s1Id].p2 == rods_[s2Id].p2)
+        {
+            pj.segment<2>(0) = q.segment<2>(rods_[s1Id].p2*2);
+            pi.segment<2>(0) = q.segment<2>(rods_[s1Id].p1*2);
+            pk.segment<2>(0) = q.segment<2>(rods_[s2Id].p1*2);
+            pjIndex = rods_[s1Id].p2;
+            piIndex = rods_[s1Id].p1;
+            pkIndex = rods_[s2Id].p1;
+        }
+        double y = ((pj - pi).cross(pk - pj)).dot(zUnit);
+        double x = ((pj - pi).norm() * (pk - pj).norm()) + ((pj - pi).dot(pk - pj));
+        double theta = 2 * atan2(y, x);
+        Vector3d Fi = (ropeHinges_[i].stiffness * theta * (pj - pi).cross(zUnit)) / (pj - pi).squaredNorm();
+        Vector3d Fk = (ropeHinges_[i].stiffness * theta * (pk - pj).cross(zUnit)) / (pk - pj).squaredNorm();
         F.segment<2>(piIndex * 2) += Fi.segment<2>(0);
         F.segment<2>(pkIndex * 2) += Fk.segment<2>(0);
         F.segment<2>(pjIndex * 2) += (-Fi-Fk).segment<2>(0);
@@ -523,20 +617,13 @@ void Simulation::computeLagrangeMultipliers(const VectorXd &qVV, const VectorXd 
     SparseMatrix<double> gradF(rods_.size(), rods_.size());
 
     VectorXd c = qVV + params_.timeStep*v + params_.timeStep * params_.timeStep * massInverseMatrix * F;
-//    cout<<"Here 0"<<endl;
     SparseMatrix<double> gradGTransposeofqVV = computeGradGTranspose(qVV);
-//    cout<<"Here 1"<<endl;
-    cout<<"\n------------------------"<<endl;
-    cout<<"\n------------------------"<<endl;
-    cout<<"\n------------------------\n\n"<<endl;
-    cout<<"\n\n Tranpose : \n"<<gradGTransposeofqVV;
     for(int newtonIt =0 ; newtonIt< params_.NewtonMaxIters; newtonIt++)
     {
         VectorXd qInside(qVV.rows());
         qInside.setZero();
         fOfx.setZero();
         gradF.setZero();
-        cout<<"\n------------------------"<<endl;
         // Compute F of Lambda(i+1)
         qInside = c + (params_.timeStep * params_.timeStep) * massInverseMatrix * gradGTransposeofqVV * lamGuess;
 
@@ -548,10 +635,8 @@ void Simulation::computeLagrangeMultipliers(const VectorXd &qVV, const VectorXd 
             Vector2d p2 = qInside.segment<2>(p2pos);
             fOfx[i] += (p2-p1).squaredNorm() - rods_[i].restlen*rods_[i].restlen;
         }
-        cout<<"\n F of X : \n\n"<<fOfx;
         if(fOfx.norm() < params_.NewtonTolerance)
         {
-            cout<<"\n Not hitting newton iteration end";
             break;
         }
         //Compute Gradient of F(lambda i + 1)
@@ -563,53 +648,13 @@ void Simulation::computeLagrangeMultipliers(const VectorXd &qVV, const VectorXd 
         rightOfGradF = params_.timeStep * params_.timeStep * massInverseMatrix * gradGTransposeofqVV;
 
         gradF = leftOfGradF * rightOfGradF;
-        cout<<"\n Grad F : \n\n"<<gradF<<endl;
         gradF.makeCompressed();
         SparseQR<SparseMatrix<double>, COLAMDOrdering<int> > solver;
         solver.compute(gradF);
         VectorXd deltaLamda = solver.solve(-fOfx);
         lamGuess += deltaLamda;
     }
-//    cout<<"Here 2"<<endl;
-    cout<<"\n Lam Guess : \n\n"<<lamGuess<<endl;
     v = v + params_.timeStep * massInverseMatrix * F + params_.timeStep * massInverseMatrix * gradGTransposeofqVV * lamGuess;
-    cout<<"\n Velocity : \n\n"<<v<<endl;
-
-//        //Compute the Fofx
-//        for(int i=0; i< rods_.size(); i++)
-//        {
-//            int p1pos = rods_[i].p1*2;
-//            int p2pos = rods_[i].p2*2;
-//            Vector2d p1 = q.segment<2>(p1pos);
-//            Vector2d p2 = q.segment<2>(p2pos);
-
-//            qInside.segment<2>(p1pos) += params_.timeStep*params_.timeStep*massInverseMatrix.coeff(p1pos, p1pos)*lamGuess[i]*(p2-p1)*2;
-//            qInside.segment<2>(p2pos) += params_.timeStep*params_.timeStep*massInverseMatrix.coeff(p2pos, p2pos)*lamGuess[i]*(p1-p2)*2;
-//        }
-
-//        for(int i=0; i<rods_.size(); i++)
-//        {
-//            int p1pos = rods_[i].p1*2;
-//            int p2pos = rods_[i].p2*2;
-//            Vector2d p1 = qInside.segment<2>(p1pos);
-//            Vector2d p2 = qInside.segment<2>(p2pos);
-//            fOfx[i] = (p2-p1).squaredNorm() - rods_[i].restlen*rods_[i].restlen;
-//        }
-//        cout<<"\n F of x : "<<fOfx<<endl;
-//        VectorXd rightSide(rods_.size()*2);
-//        for (int i = 0; i < rods_.size(); i++)
-//        {
-//            int p1pos = rods_[i].p1*2;
-//            int p2pos = rods_[i].p2*2;
-//            Vector2d p1 = q.segment<2>(p1pos);
-//            Vector2d p2 = q.segment<2>(p2pos);
-
-//            Vector2d temp1 = params_.timeStep * params_.timeStep * massInverseMatrix(p1pos, p1pos) * (p2-p1) * 2;
-//            Vector2d temp2 = params_.timeStep * params_.timeStep * massInverseMatrix(p2pos, p2pos) * (p1-p2) * 2;
-//            // TODO : Complete this
-
-
-//        }
 }
 
 Eigen::SparseMatrix<double> Simulation::computeGradGTranspose(const VectorXd &q)
@@ -625,7 +670,7 @@ Eigen::SparseMatrix<double> Simulation::computeGradGTranspose(const VectorXd &q)
         Vector2d p2 = q.segment<2>(p2index);
 
         Vector2d gradient1 = (p2 - p1)*-2;
-        Vector2d gradient2 = (p1 - p2)*2;
+        Vector2d gradient2 = (p1 - p2)*-2;
 
         gradGTranspose.coeffRef(p1index, i) += gradient1[0];
         gradGTranspose.coeffRef(p1index+1, i) += gradient1[1];
@@ -801,7 +846,7 @@ void Simulation::pruneOverstrainedSprings()
         if(!springstodelete.empty())
         {
             springs_ = newsprings;
-            for(vector<Hinge>::iterator hinge = hinges_.begin(); hinge != hinges_.end(); ++hinge)
+            for(vector<FlexibleRodHinge>::iterator hinge = flexibleRodHinges_.begin(); hinge != flexibleRodHinges_.end(); ++hinge)
             {
                 hinge->s1 = remainingspringmap[hinge->s1];
                 hinge->s2 = remainingspringmap[hinge->s2];
@@ -821,7 +866,7 @@ double Simulation::ptSegmentDist(const Vector2d &p, const Vector2d &q1, const Ve
     return sqrt(mindistsq);
 }
 
-void Simulation::detectSawedSprings(std::set<int> &springsToDelete, std::set<int> &hingesToDelete)
+void Simulation::detectSawedSprings(std::set<int> &springsToDelete, std::set<int> &springHingesToDelete)
 {
     for(int i=0; i<(int)springs_.size(); i++)
     {
@@ -845,11 +890,11 @@ void Simulation::detectSawedSprings(std::set<int> &springsToDelete, std::set<int
                 particles_[springs_[i].p1].mass -= springs_[i].mass/2;
                 particles_[springs_[i].p2].mass -= springs_[i].mass/2;
                 springsToDelete.insert(i);
-                for(int j=0; j<(int)hinges_.size(); j++)
+                for(int j=0; j<(int)flexibleRodHinges_.size(); j++)
                 {
-                    if (hinges_[j].s1 == i || hinges_[j].s2 == i)
+                    if (flexibleRodHinges_[j].s1 == i || flexibleRodHinges_[j].s2 == i)
                     {
-                        hingesToDelete.insert(j);
+                        springHingesToDelete.insert(j);
                     }
                 }
                 break;
@@ -858,7 +903,7 @@ void Simulation::detectSawedSprings(std::set<int> &springsToDelete, std::set<int
     }
 }
 
-void Simulation::detectSawedRods(std::set<int> &rodsToDelete)
+void Simulation::detectSawedRods(std::set<int> &rodsToDelete, std::set<int> &ropeHingesToDelete)
 {
     for(int i=0; i<(int)rods_.size(); i++)
     {
@@ -879,7 +924,16 @@ void Simulation::detectSawedRods(std::set<int> &rodsToDelete)
             double sawRodDistance = ptSegmentDist(sawpos, pos1, pos2);
             if(sawRodDistance <= sawRadius)
             {
+                particles_[rods_[i].p1].mass -= rods_[i].mass/2;
+                particles_[rods_[i].p2].mass -= rods_[i].mass/2;
                 rodsToDelete.insert(i);
+                for(int j=0; j<(int)ropeHinges_.size(); j++)
+                {
+                    if (ropeHinges_[j].s1 == i || ropeHinges_[j].s2 == i)
+                    {
+                        ropeHingesToDelete.insert(j);
+                    }
+                }
                 break;
             }
         }
@@ -915,18 +969,21 @@ void Simulation::deleteSawedObjects()
 {
     set<int> particlestodelete;
     set<int> springstodelete;
-    set<int> hingestodelete;
+    set<int> springHingesToDelete;
+    set<int> ropeHingesToDelete;
     set<int> rodsToDelete;
     detectSawedParticles(particlestodelete);
-    detectSawedSprings(springstodelete, hingestodelete);
-    detectSawedRods(rodsToDelete);
+    detectSawedSprings(springstodelete, springHingesToDelete);
+    detectSawedRods(rodsToDelete, ropeHingesToDelete);
 
     vector<Particle> newparticles;
     vector<Spring> newsprings;
-    vector<Hinge> newhinges;
+    vector<FlexibleRodHinge> newSpringHinges;
+    vector<RopeHinge> newRopeHinges;
     vector<Rod> newrods;
     vector<int> remainingparticlemap;
     vector<int> remainingspringmap;
+    vector<int> remainingrodmap;
     if(!particlestodelete.empty())
     {
         for(int i=0; i<(int)springs_.size(); i++)
@@ -934,11 +991,11 @@ void Simulation::deleteSawedObjects()
             if(particlestodelete.count(springs_[i].p1) || particlestodelete.count(springs_[i].p2))
             {
                 springstodelete.insert(i);
-                for(int j=0; j<(int)hinges_.size(); j++)
+                for(int j=0; j<(int)flexibleRodHinges_.size(); j++)
                 {
-                    if (springstodelete.count(hinges_[j].s1) || springstodelete.count(hinges_[j].s2))
+                    if (springstodelete.count(flexibleRodHinges_[j].s1) || springstodelete.count(flexibleRodHinges_[j].s2))
                     {
-                        hingestodelete.insert(j);
+                        springHingesToDelete.insert(j);
                     }
                 }
             }
@@ -947,7 +1004,16 @@ void Simulation::deleteSawedObjects()
         for(int i=0; i<(int)rods_.size(); i++)
         {
             if(particlestodelete.count(rods_[i].p1) || particlestodelete.count(rods_[i].p2))
+            {
                 rodsToDelete.insert(i);
+                for(int j=0; j<(int)ropeHinges_.size(); j++)
+                {
+                    if (rodsToDelete.count(ropeHinges_[j].s1) || rodsToDelete.count(ropeHinges_[j].s2))
+                    {
+                        ropeHingesToDelete.insert(j);
+                    }
+                }
+            }
         }
         for(int i=0; i<(int)particles_.size(); i++)
         {
@@ -981,32 +1047,56 @@ void Simulation::deleteSawedObjects()
         {
             if(rodsToDelete.count(i) == 0)
             {
+                remainingrodmap.push_back(newrods.size());
                 newrods.push_back(rods_[i]);
             }
-        }
-    }
-    if(!hingestodelete.empty())
-    {
-        for(int i=0; i<(int)hinges_.size(); i++)
-        {
-            if(hingestodelete.count(i) == 0)
+            else
             {
-                newhinges.push_back(hinges_[i]);
+                remainingrodmap.push_back(-1);
             }
         }
     }
-    if(!springstodelete.empty() || !particlestodelete.empty() || !rodsToDelete.empty() || !hingestodelete.empty())
+    if(!springHingesToDelete.empty())
+    {
+        for(int i=0; i<(int)flexibleRodHinges_.size(); i++)
+        {
+            if(springHingesToDelete.count(i) == 0)
+            {
+                newSpringHinges.push_back(flexibleRodHinges_[i]);
+            }
+        }
+    }
+    if(!ropeHingesToDelete.empty())
+    {
+        for(int i=0; i<(int)ropeHinges_.size(); i++)
+        {
+            if(ropeHingesToDelete.count(i) == 0)
+            {
+                newRopeHinges.push_back(ropeHinges_[i]);
+            }
+        }
+    }
+    if(!springstodelete.empty() || !particlestodelete.empty() || !rodsToDelete.empty() || !springHingesToDelete.empty() || !ropeHingesToDelete.empty())
     {
         renderLock_.lock();
         {
-            if(!hingestodelete.empty())
-                hinges_ = newhinges;
+            if(!ropeHingesToDelete.empty())
+                ropeHinges_ = newRopeHinges;
+            if(!springHingesToDelete.empty())
+                flexibleRodHinges_ = newSpringHinges;
             if(!rodsToDelete.empty())
+            {
                 rods_ = newrods;
+                for(vector<RopeHinge>::iterator hinge = ropeHinges_.begin(); hinge != ropeHinges_.end(); ++hinge)
+                {
+                    hinge->s1 = remainingrodmap[hinge->s1];
+                    hinge->s2 = remainingrodmap[hinge->s2];
+                }
+            }
             if(!springstodelete.empty())
             {
                 springs_ = newsprings;
-                for(vector<Hinge>::iterator hinge = hinges_.begin(); hinge != hinges_.end(); ++hinge)
+                for(vector<FlexibleRodHinge>::iterator hinge = flexibleRodHinges_.begin(); hinge != flexibleRodHinges_.end(); ++hinge)
                 {
                     hinge->s1 = remainingspringmap[hinge->s1];
                     hinge->s2 = remainingspringmap[hinge->s2];
@@ -1037,7 +1127,8 @@ void Simulation::clearScene()
     {
         particles_.clear();
         springs_.clear();
-        hinges_.clear();
+        flexibleRodHinges_.clear();
+        ropeHinges_.clear();
         saws_.clear();
         rods_.clear();
     }
