@@ -115,7 +115,7 @@ public:
 class Simulation
 {
 public:
-    Simulation(const SimParameters &params);
+    Simulation(SimParameters &params);
 
     void addParticle(double x, double y);
     void addSaw(double x, double y);
@@ -125,7 +125,7 @@ public:
     void clearScene();
 
 private:
-    const SimParameters &params_;
+    SimParameters &params_;
     QMutex renderLock_;
 
     double time_;
@@ -162,6 +162,8 @@ private:
     void detectSawedSprings(std::set<int> &springsToDelete, std::set<int> &hingesToDelete);
     void detectSawedRods(std::set<int> &rodsToDelete, std::set<int> &ropeHingesToDelete);
     void detectSawedParticles(std::set<int> &particlesToDelete);
+
+    void detectCollectedParticles();
 };
 
 #endif // SIMULATION_H

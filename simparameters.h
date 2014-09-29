@@ -44,6 +44,7 @@ struct SimParameters
     //Extra
     bool cloudsOn;
     bool gameModeOn;
+    double score;
 
 };
 

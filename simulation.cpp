@@ -9,7 +9,7 @@ const double PI = 3.1415926535898;
 using namespace Eigen;
 using namespace std;
 
-Simulation::Simulation(const SimParameters &params) : params_(params), time_(0)
+Simulation::Simulation(SimParameters &params) : params_(params), time_(0)
 {
 }
 
@@ -105,9 +105,65 @@ void Simulation::render()
         // Game Mode Render
         if (params_.gameModeOn)
         {
+            // Bottom Left square
+            glBegin(GL_QUADS);
+            {
+                glColor3f(1, 1, 1);
+                glVertex2f(-0.9, -0.2);
+                glColor3f(1, 0, 0);
+                glVertex2f(-0.7, -0.2);
+                glColor3f(1, 0, 0);
+                glVertex2f(-0.7, -0.4);
+                glColor3f(1, 0, 0);
+                glVertex2f(-0.9, -0.4);
+            }
+            glEnd();
+            glBegin(GL_LINES);
+            {
+                glLineWidth(16);
+                glColor3f(0, 0, 0);
+                glVertex2f(-0.9, -0.2);
+                glVertex2f(-0.7, -0.2);
+
+                glVertex2f(-0.7, -0.2);
+                glVertex2f(-0.7, -0.4);
+
+                glVertex2f(-0.7, -0.4);
+                glVertex2f(-0.9, -0.4);
+
+                glVertex2f(-0.9, -0.4);
+                glVertex2f(-0.9, -0.2);
+
+            }
+            glEnd();
+            // Middle Right square
             glBegin(GL_QUADS);
             {
                 glColor3f(1, 0, 0);
+                glVertex2f(0.5, 0.6);
+                glColor3f(1, 0.5, 0);
+                glVertex2f(0.7, 0.6);
+                glColor3f(1, 1, 0);
+                glVertex2f(0.7, 0.4);
+                glColor3f(1, 0.5, 0);
+                glVertex2f(0.5, 0.4);
+            }
+            glEnd();
+            glBegin(GL_LINES);
+            {
+                glLineWidth(16);
+                glColor3f(0, 0, 0);
+                glVertex2f(0.7, 0.6);
+                glVertex2f(0.5, 0.6);
+
+                glVertex2f(0.5, 0.6);
+                glVertex2f(0.5, 0.4);
+
+                glVertex2f(0.5, 0.4);
+                glVertex2f(0.7, 0.4);
+
+                glVertex2f(0.7, 0.4);
+                glVertex2f(0.7, 0.6);
 
             }
             glEnd();
@@ -168,19 +224,25 @@ void Simulation::render()
                 radius = baseradius;
                 glColor3f(1.0,0,0);
             }
-
+            int swap = 1;
             glBegin(GL_TRIANGLE_FAN);
             {
                 glVertex2f(it->pos[0], it->pos[1]);
                 for(int i=0; i<=numcirclewedges; i++)
                 {
-                    if (i%7 && !it->fixed)
+                    if (i%5==0 && !it->fixed)
                     {
-                        glColor3f(0.9+0.2*pulse, 0.4+0.2*pulse, 0);
-                    }
-                    else if (!it->fixed)
-                    {
-                        glColor3f(0, 0.9+0.2*pulse, 0);
+                        swap =swap*-1;
+                        if(swap>0)
+                        {
+                            glColor3f(0.9+0.2*pulse, 0.4+0.2*pulse, 0);
+
+                        }
+                        else
+                        {
+                            glColor3f(0, 0.9+0.2*pulse, 0);
+
+                        }
                     }
                     glVertex2f(it->pos[0] + radius * cos(2*PI*i/numcirclewedges),
                                it->pos[1] + radius * sin(2*PI*i/numcirclewedges));
@@ -233,6 +295,10 @@ void Simulation::takeSimulationStep()
 
     pruneOverstrainedSprings();
     deleteSawedObjects();
+    if (params_.gameModeOn)
+    {
+        detectCollectedParticles();
+    }
     time_ += params_.timeStep;
 }
 
@@ -240,8 +306,6 @@ void Simulation::addParticle(double x, double y)
 {
     renderLock_.lock();
     {
-        // Render the goals:
-//        if (gameMode)
         Vector2d newParticlePos(x,y);
         double particleMass = params_.particleMass;
         int newParticleIndex = particles_.size();
@@ -283,7 +347,6 @@ void Simulation::addParticle(double x, double y)
                     Vector2d newInertParticlePos = (distanceToMove * 1) + pos;
                     springs_.push_back(Spring(particles_.size(), i, springStiffness, springLength, springMass, true));
                     particles_.push_back(Particle(newInertParticlePos, springMass, false, true));
-//                    particles_[i].mass += springMass/2;
                     int j;
                     for (j=2; j<=rodSegs - 1; j++)
                     {
@@ -307,25 +370,21 @@ void Simulation::addParticle(double x, double y)
                     }
                     double rodLength = dist/rodSegs;
                     double rodMass = params_.rodDensity * rodLength;
-//                    double springStiffness = params_.rodStretchStiffness/rodLength;
                     double hingeStiffness = 0;
                     Vector2d unitVector = (newParticlePos - pos)/dist;
                     Vector2d distanceToMove = unitVector * (dist/rodSegs);
                     Vector2d newInertParticlePos = (distanceToMove * 1) + pos;
-//                    springs_.push_back(Spring(particles_.size(), i, springStiffness, rodLength, rodMass, true));
                     rods_.push_back(Rod(particles_.size(), i, rodLength, rodMass, true));
                     particles_.push_back(Particle(newInertParticlePos, rodMass, false, true));
                     int j;
                     for (j=2; j<=rodSegs - 1; j++)
                     {
                         newInertParticlePos = (distanceToMove * j) + pos;
-//                        springs_.push_back(Spring(particles_.size(), particles_.size() - 1, springStiffness, rodLength, rodMass, true));
                         rods_.push_back(Rod(particles_.size(), particles_.size() - 1, rodLength, rodMass, true));
                         particles_.push_back(Particle(newInertParticlePos, rodMass, false, true));
                         hingeStiffness = (params_.rodBendingStiffness * 2)/(rods_[rods_.size() - 1].restlen + rods_[rods_.size() - 2].restlen);
                         ropeHinges_.push_back(RopeHinge(rods_.size() - 1, rods_.size() - 2, hingeStiffness));
                     }
-//                    springs_.push_back(Spring(newParticleIndex, particles_.size() - 1, springStiffness, rodLength, rodMass, true));
                     rods_.push_back(Rod(newParticleIndex, particles_.size() - 1, rodLength, rodMass, true));
                     hingeStiffness = (params_.rodBendingStiffness * 2)/(rods_[rods_.size() - 1].restlen + rods_[rods_.size() - 2].restlen);
                     ropeHinges_.push_back(RopeHinge(rods_.size() - 1, rods_.size() - 2, hingeStiffness));
@@ -686,7 +745,6 @@ void Simulation::numericalIntegration(VectorXd &q, VectorXd &qprev, VectorXd &v)
         q += params_.timeStep*v;
         computeForceAndHessian(q, oldq, F, H);
         computeLagrangeMultipliers(q, F, v);
-//        v += params_.timeStep*Minv*F;
     }
 }
 
@@ -868,7 +926,6 @@ void Simulation::computeStepProject(VectorXd &q, VectorXd &oldq, VectorXd &v)
         SparseQR<SparseMatrix<double>, COLAMDOrdering<int> > solver;
         solver.compute(forceGradient);
         VectorXd deltaguess = solver.solve(-forceX);
-        // cout << "deltaGuess " << deltaguess << endl;
         for(int j = 0; j < qGuess.rows(); j++)
         {
             qGuess[j] -= deltaguess[j];
@@ -1061,6 +1118,176 @@ void Simulation::deleteSawedObjects()
     vector<int> remainingparticlemap;
     vector<int> remainingspringmap;
     vector<int> remainingrodmap;
+    if(!particlestodelete.empty())
+    {
+        for(int i=0; i<(int)springs_.size(); i++)
+        {
+            if(particlestodelete.count(springs_[i].p1) || particlestodelete.count(springs_[i].p2))
+            {
+                springstodelete.insert(i);
+                for(int j=0; j<(int)flexibleRodHinges_.size(); j++)
+                {
+                    if (springstodelete.count(flexibleRodHinges_[j].s1) || springstodelete.count(flexibleRodHinges_[j].s2))
+                    {
+                        springHingesToDelete.insert(j);
+                    }
+                }
+            }
+
+        }
+        for(int i=0; i<(int)rods_.size(); i++)
+        {
+            if(particlestodelete.count(rods_[i].p1) || particlestodelete.count(rods_[i].p2))
+            {
+                rodsToDelete.insert(i);
+                for(int j=0; j<(int)ropeHinges_.size(); j++)
+                {
+                    if (rodsToDelete.count(ropeHinges_[j].s1) || rodsToDelete.count(ropeHinges_[j].s2))
+                    {
+                        ropeHingesToDelete.insert(j);
+                    }
+                }
+            }
+        }
+        for(int i=0; i<(int)particles_.size(); i++)
+        {
+            if(particlestodelete.count(i) == 0)
+            {
+                remainingparticlemap.push_back(newparticles.size());
+                newparticles.push_back(particles_[i]);
+            }
+            else
+                remainingparticlemap.push_back(-1);
+        }
+    }
+    if(!springstodelete.empty())
+    {
+        for(int i=0; i<(int)springs_.size(); i++)
+        {
+            if(springstodelete.count(i) == 0)
+            {
+                remainingspringmap.push_back(newsprings.size());
+                newsprings.push_back(springs_[i]);
+            }
+            else
+            {
+                remainingspringmap.push_back(-1);
+            }
+        }
+    }
+    if(!rodsToDelete.empty())
+    {
+        for(int i=0; i<(int)rods_.size(); i++)
+        {
+            if(rodsToDelete.count(i) == 0)
+            {
+                remainingrodmap.push_back(newrods.size());
+                newrods.push_back(rods_[i]);
+            }
+            else
+            {
+                remainingrodmap.push_back(-1);
+            }
+        }
+    }
+    if(!springHingesToDelete.empty())
+    {
+        for(int i=0; i<(int)flexibleRodHinges_.size(); i++)
+        {
+            if(springHingesToDelete.count(i) == 0)
+            {
+                newSpringHinges.push_back(flexibleRodHinges_[i]);
+            }
+        }
+    }
+    if(!ropeHingesToDelete.empty())
+    {
+        for(int i=0; i<(int)ropeHinges_.size(); i++)
+        {
+            if(ropeHingesToDelete.count(i) == 0)
+            {
+                newRopeHinges.push_back(ropeHinges_[i]);
+            }
+        }
+    }
+    if(!springstodelete.empty() || !particlestodelete.empty() || !rodsToDelete.empty() || !springHingesToDelete.empty() || !ropeHingesToDelete.empty())
+    {
+        renderLock_.lock();
+        {
+            if(!ropeHingesToDelete.empty())
+                ropeHinges_ = newRopeHinges;
+            if(!springHingesToDelete.empty())
+                flexibleRodHinges_ = newSpringHinges;
+            if(!rodsToDelete.empty())
+            {
+                rods_ = newrods;
+                for(vector<RopeHinge>::iterator hinge = ropeHinges_.begin(); hinge != ropeHinges_.end(); ++hinge)
+                {
+                    hinge->s1 = remainingrodmap[hinge->s1];
+                    hinge->s2 = remainingrodmap[hinge->s2];
+                }
+            }
+            if(!springstodelete.empty())
+            {
+                springs_ = newsprings;
+                for(vector<FlexibleRodHinge>::iterator hinge = flexibleRodHinges_.begin(); hinge != flexibleRodHinges_.end(); ++hinge)
+                {
+                    hinge->s1 = remainingspringmap[hinge->s1];
+                    hinge->s2 = remainingspringmap[hinge->s2];
+                }
+            }
+            if(!particlestodelete.empty())
+            {
+                particles_ = newparticles;
+                for(vector<Spring>::iterator it = springs_.begin(); it != springs_.end(); ++it)
+                {
+                    it->p1 = remainingparticlemap[it->p1];
+                    it->p2 = remainingparticlemap[it->p2];
+                }
+                for(vector<Rod>::iterator it = rods_.begin(); it != rods_.end(); ++it)
+                {
+                    it->p1 = remainingparticlemap[it->p1];
+                    it->p2 = remainingparticlemap[it->p2];
+                }
+            }
+        }
+        renderLock_.unlock();
+    }
+}
+
+void Simulation::detectCollectedParticles()
+{
+    set<int> particlestodelete;
+    set<int> springstodelete;
+    set<int> rodsToDelete;
+    set<int> springHingesToDelete;
+    set<int> ropeHingesToDelete;
+
+    vector<Particle> newparticles;
+    vector<Spring> newsprings;
+    vector<Rod> newrods;
+    vector<FlexibleRodHinge> newSpringHinges;
+    vector<RopeHinge> newRopeHinges;
+    vector<int> remainingparticlemap;
+    vector<int> remainingspringmap;
+    vector<int> remainingrodmap;
+
+    for(int i=0; i<(int)particles_.size(); i++)
+    {
+        Vector2d particlePos = particles_[i].pos;
+
+        // Check for bottom left square
+        if ((particlePos[0] < -0.7 && particlePos[0] > -0.9) && (particlePos[1] < -0.2 && particlePos[1] > -0.4))
+        {
+            particlestodelete.insert(i);
+            params_.score += 2;
+        }
+        else if ((particlePos[0] < 0.7 && particlePos[0] > 0.5) && (particlePos[1] < 0.6 && particlePos[1] > 0.4))
+        {
+            particlestodelete.insert(i);
+            params_.score += 4;
+        }
+    }
     if(!particlestodelete.empty())
     {
         for(int i=0; i<(int)springs_.size(); i++)

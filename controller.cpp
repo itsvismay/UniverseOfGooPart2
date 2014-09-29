@@ -64,5 +64,11 @@ void Controller::mouseClicked(double x, double y)
 void Controller::simTick()
 {
     if(params_.simRunning)
+    {
         sim_->takeSimulationStep();
+        if (params_.gameModeOn)
+        {
+            QMetaObject::invokeMethod(mw_, "setUIFromParameters", Q_ARG(SimParameters, params_));
+        }
+    }
 }

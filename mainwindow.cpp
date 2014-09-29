@@ -1,3 +1,4 @@
+#include <iostream>
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "simparameters.h"
@@ -92,6 +93,7 @@ void MainWindow::setParametersFromUI()
     //Extra
     params.gameModeOn = ui->gameModeCheckBox->isChecked();
     params.cloudsOn =  ui->cloudsCheckBox->isChecked();
+//    params.score = ui->scoreTextLabel->text().toDouble();
 
     setUIFromParameters(params);
     QMetaObject::invokeMethod(&cont_, "updateParameters", Q_ARG(SimParameters, params));
@@ -169,6 +171,7 @@ void MainWindow::setUIFromParameters(const SimParameters &params)
     //Extra
     ui->gameModeCheckBox->setChecked(params.gameModeOn);
     ui->cloudsCheckBox->setChecked(params.cloudsOn);
+    ui->scoreTextLabel->setText(QString::number(params.score));
 
 }
 
