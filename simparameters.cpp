@@ -20,7 +20,7 @@ SimParameters::SimParameters()
     particleMass = 1.0;
     particleFixed = false;
     maxSpringDist = 0.25;
-    sawRadius= 0.01;
+    sawRadius= 0.05;
 
     rodDensity = 2.0;
     rodStretchStiffness = 100.0;
