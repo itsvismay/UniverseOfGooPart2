@@ -1,7 +1,7 @@
 /****************************************************************************
 ** Meta object code from reading C++ file 'controller.h'
 **
-** Created: Mon Sep 29 15:27:15 2014
+** Created: Mon Sep 29 18:41:03 2014
 **      by: The Qt Meta Object Compiler version 63 (Qt 4.8.1)
 **
 ** WARNING! All changes made in this file will be lost!
@@ -23,7 +23,7 @@ static const uint qt_meta_data_Controller[] = {
        6,       // revision
        0,       // classname
        0,    0, // classinfo
-       5,   14, // methods
+       6,   14, // methods
        0,    0, // properties
        0,    0, // enums/sets
        0,    0, // constructors
@@ -36,6 +36,7 @@ static const uint qt_meta_data_Controller[] = {
       40,   33,   11,   11, 0x0a,
       76,   72,   11,   11, 0x0a,
      104,   11,   11,   11, 0x0a,
+     114,   11,   11,   11, 0x0a,
 
        0        // eod
 };
@@ -44,7 +45,7 @@ static const char qt_meta_stringdata_Controller[] = {
     "Controller\0\0reset()\0clearScene()\0"
     "params\0updateParameters(SimParameters)\0"
     "x,y\0mouseClicked(double,double)\0"
-    "simTick()\0"
+    "simTick()\0setupGameMode()\0"
 };
 
 void Controller::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
@@ -58,6 +59,7 @@ void Controller::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         case 2: _t->updateParameters((*reinterpret_cast< SimParameters(*)>(_a[1]))); break;
         case 3: _t->mouseClicked((*reinterpret_cast< double(*)>(_a[1])),(*reinterpret_cast< double(*)>(_a[2]))); break;
         case 4: _t->simTick(); break;
+        case 5: _t->setupGameMode(); break;
         default: ;
         }
     }
@@ -95,9 +97,9 @@ int Controller::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 5)
+        if (_id < 6)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 5;
+        _id -= 6;
     }
     return _id;
 }

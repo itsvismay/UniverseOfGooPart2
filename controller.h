@@ -26,6 +26,8 @@ public slots:
 
     void simTick();
 
+    void setupGameMode();
+
 protected:
     virtual void run();
 

@@ -32,5 +32,4 @@ SimParameters::SimParameters()
 
     cloudsOn = false;
     gameModeOn = false;
-    score = 0;
 }

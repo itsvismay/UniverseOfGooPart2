@@ -9,13 +9,17 @@ const double PI = 3.1415926535898;
 using namespace Eigen;
 using namespace std;
 
-Simulation::Simulation(SimParameters &params) : params_(params), time_(0)
+Simulation::Simulation(const SimParameters &params) : params_(params), time_(0)
 {
     Eigen::Vector2d pos1(-0.9,0.9);
     clouds_.push_back(Cloud(pos1, 1));
     Eigen::Vector2d pos2(0, 0.8);
     clouds_.push_back(Cloud(pos2, .8));
 }
+
+int Simulation::goalParticleID = 0;
+bool Simulation::gameModeOn = false;
+
 void Simulation::renderCloud(Eigen::Vector2d point, double radius)
 {
     glBegin(GL_TRIANGLE_FAN);
@@ -63,8 +67,6 @@ void Simulation::render()
     {
         glBegin(GL_TRIANGLES);
         {
-//            glColor3f(0.3, 1.0, 0.3);
-//            glColor3f(0.911, 0.591, 0.28);
             glColor3f(0, 0.78, 1);
 
             glVertex2f(-1, -0.5);
@@ -95,8 +97,7 @@ void Simulation::render()
                     }
                 }
                 Eigen::Vector2d subcloud = it->pos1;
-
-                glColor3f(0.95, .95, 0.95);
+                glColor3f(0.95, 0.95, 0.95);
                 renderCloud(it->pos1, cloud_radius);
 
                 subcloud[0]+=0.08;
@@ -148,30 +149,30 @@ void Simulation::render()
             glBegin(GL_QUADS);
             {
                 glColor3f(1, 0, 0);
-                glVertex2f(0.5, 0.6);
+                glVertex2f(0.5, 0.3);
                 glColor3f(1, 0.5, 0);
-                glVertex2f(0.7, 0.6);
+                glVertex2f(0.7, 0.3);
                 glColor3f(1, 1, 0);
-                glVertex2f(0.7, 0.4);
+                glVertex2f(0.7, 0.1);
                 glColor3f(1, 0.5, 0);
-                glVertex2f(0.5, 0.4);
+                glVertex2f(0.5, 0.1);
             }
             glEnd();
             glBegin(GL_LINES);
             {
                 glLineWidth(16);
                 glColor3f(0, 0, 0);
-                glVertex2f(0.7, 0.6);
-                glVertex2f(0.5, 0.6);
+                glVertex2f(0.7, 0.3);
+                glVertex2f(0.5, 0.3);
 
-                glVertex2f(0.5, 0.6);
-                glVertex2f(0.5, 0.4);
+                glVertex2f(0.5, 0.3);
+                glVertex2f(0.5, 0.1);
 
-                glVertex2f(0.5, 0.4);
-                glVertex2f(0.7, 0.4);
+                glVertex2f(0.5, 0.1);
+                glVertex2f(0.7, 0.1);
 
-                glVertex2f(0.7, 0.4);
-                glVertex2f(0.7, 0.6);
+                glVertex2f(0.7, 0.1);
+                glVertex2f(0.7, 0.3);
 
             }
             glEnd();
@@ -225,8 +226,6 @@ void Simulation::render()
             double pulse = pulsefactor*sin(pulsespeed*time_);
             radius *= (1.0 + pulse);
 
-            glColor3f(0.9+0.2*pulse, 0.9+0.2*pulse, 0.9+0.2*pulse);
-
             if(it->fixed)
             {
                 radius = baseradius;
@@ -250,6 +249,17 @@ void Simulation::render()
                         {
                             glColor3f(0, 0.9+0.2*pulse, 0);
 
+                        }
+                    }
+                    if(params_.gameModeOn && (it - particles_.begin()) == goalParticleID)
+                    {
+                        if (i%7==0 && !it->fixed)
+                        {
+                            glColor3f(1, 1, 1);
+                        }
+                        else
+                        {
+                            glColor3f(1, 1, 0);
                         }
                     }
                     glVertex2f(it->pos[0] + radius * cos(2*PI*i/numcirclewedges),
@@ -305,12 +315,17 @@ void Simulation::takeSimulationStep()
     deleteSawedObjects();
     if (params_.gameModeOn)
     {
-        detectCollectedParticles();
+        detectGoalParticleCollision();
     }
     time_ += params_.timeStep;
 }
 
 void Simulation::addParticle(double x, double y)
+{
+    addParticle(x, y, params_.particleFixed);
+}
+
+void Simulation::addParticle(double x, double y, bool particleFixed)
 {
     renderLock_.lock();
     {
@@ -319,7 +334,7 @@ void Simulation::addParticle(double x, double y)
         int newParticleIndex = particles_.size();
         if (params_.connector == params_.CT_FLEXIBLE_ROD || params_.connector == params_.CT_ROPE)
         {
-            particles_.push_back(Particle(newParticlePos, particleMass, params_.particleFixed, false));
+            particles_.push_back(Particle(newParticlePos, particleMass, particleFixed, false));
         }
         for(int i=0; i<(int)particles_.size(); i++)
         {
@@ -400,13 +415,13 @@ void Simulation::addParticle(double x, double y)
                 }
             }
         }
-        if(params_.particleFixed)
+        if(particleFixed)
         {
             particleMass = std::numeric_limits<double>::infinity();
         }
         if (params_.connector != params_.CT_FLEXIBLE_ROD && params_.connector != params_.CT_ROPE)
         {
-            particles_.push_back(Particle(newParticlePos, particleMass, params_.particleFixed, false));
+            particles_.push_back(Particle(newParticlePos, particleMass, particleFixed, false));
         }
         else
         {
@@ -1167,6 +1182,10 @@ void Simulation::deleteSawedObjects()
             else
                 remainingparticlemap.push_back(-1);
         }
+        if (params_.gameModeOn)
+        {
+            goalParticleID = remainingparticlemap[goalParticleID];
+        }
     }
     if(!springstodelete.empty())
     {
@@ -1263,173 +1282,32 @@ void Simulation::deleteSawedObjects()
     }
 }
 
-void Simulation::detectCollectedParticles()
+void Simulation::setupGameMode()
 {
-    set<int> particlestodelete;
-    set<int> springstodelete;
-    set<int> rodsToDelete;
-    set<int> springHingesToDelete;
-    set<int> ropeHingesToDelete;
+    clearScene();
+    double x = 2*rand()/(RAND_MAX + 1.0);
+    double y = 2*rand()/(RAND_MAX + 1.0);
+    addParticle(-0.1, 0.7, false);
+    goalParticleID = particles_.size() - 1;
+    addParticle(0, 0.8, true);
+}
 
-    vector<Particle> newparticles;
-    vector<Spring> newsprings;
-    vector<Rod> newrods;
-    vector<FlexibleRodHinge> newSpringHinges;
-    vector<RopeHinge> newRopeHinges;
-    vector<int> remainingparticlemap;
-    vector<int> remainingspringmap;
-    vector<int> remainingrodmap;
+void Simulation::detectGoalParticleCollision()
+{
 
-    for(int i=0; i<(int)particles_.size(); i++)
+    Particle goalParticle = particles_[goalParticleID];
+    Vector2d particlePos = goalParticle.pos;
+    if ((particlePos[0] < -0.7 && particlePos[0] > -0.9) && (particlePos[1] < -0.2 && particlePos[1] > -0.4))
     {
-        Vector2d particlePos = particles_[i].pos;
-
-        // Check for bottom left square
-        if ((particlePos[0] < -0.7 && particlePos[0] > -0.9) && (particlePos[1] < -0.2 && particlePos[1] > -0.4))
-        {
-            particlestodelete.insert(i);
-            params_.score += 2;
-        }
-        else if ((particlePos[0] < 0.7 && particlePos[0] > 0.5) && (particlePos[1] < 0.6 && particlePos[1] > 0.4))
-        {
-            particlestodelete.insert(i);
-            params_.score += 4;
-        }
+        setupGameMode();
     }
-    if(!particlestodelete.empty())
+    else if ((particlePos[0] < 0.7 && particlePos[0] > 0.5) && (particlePos[1] < 0.3 && particlePos[1] > 0.1))
     {
-        for(int i=0; i<(int)springs_.size(); i++)
-        {
-            if(particlestodelete.count(springs_[i].p1) || particlestodelete.count(springs_[i].p2))
-            {
-                springstodelete.insert(i);
-                for(int j=0; j<(int)flexibleRodHinges_.size(); j++)
-                {
-                    if (springstodelete.count(flexibleRodHinges_[j].s1) || springstodelete.count(flexibleRodHinges_[j].s2))
-                    {
-                        springHingesToDelete.insert(j);
-                    }
-                }
-            }
-
-        }
-        for(int i=0; i<(int)rods_.size(); i++)
-        {
-            if(particlestodelete.count(rods_[i].p1) || particlestodelete.count(rods_[i].p2))
-            {
-                rodsToDelete.insert(i);
-                for(int j=0; j<(int)ropeHinges_.size(); j++)
-                {
-                    if (rodsToDelete.count(ropeHinges_[j].s1) || rodsToDelete.count(ropeHinges_[j].s2))
-                    {
-                        ropeHingesToDelete.insert(j);
-                    }
-                }
-            }
-        }
-        for(int i=0; i<(int)particles_.size(); i++)
-        {
-            if(particlestodelete.count(i) == 0)
-            {
-                remainingparticlemap.push_back(newparticles.size());
-                newparticles.push_back(particles_[i]);
-            }
-            else
-                remainingparticlemap.push_back(-1);
-        }
+        setupGameMode();
     }
-    if(!springstodelete.empty())
+    else if (fabs(particlePos[0]) > 1 || fabs(particlePos[1]) > 1)
     {
-        for(int i=0; i<(int)springs_.size(); i++)
-        {
-            if(springstodelete.count(i) == 0)
-            {
-                remainingspringmap.push_back(newsprings.size());
-                newsprings.push_back(springs_[i]);
-            }
-            else
-            {
-                remainingspringmap.push_back(-1);
-            }
-        }
-    }
-    if(!rodsToDelete.empty())
-    {
-        for(int i=0; i<(int)rods_.size(); i++)
-        {
-            if(rodsToDelete.count(i) == 0)
-            {
-                remainingrodmap.push_back(newrods.size());
-                newrods.push_back(rods_[i]);
-            }
-            else
-            {
-                remainingrodmap.push_back(-1);
-            }
-        }
-    }
-    if(!springHingesToDelete.empty())
-    {
-        for(int i=0; i<(int)flexibleRodHinges_.size(); i++)
-        {
-            if(springHingesToDelete.count(i) == 0)
-            {
-                newSpringHinges.push_back(flexibleRodHinges_[i]);
-            }
-        }
-    }
-    if(!ropeHingesToDelete.empty())
-    {
-        for(int i=0; i<(int)ropeHinges_.size(); i++)
-        {
-            if(ropeHingesToDelete.count(i) == 0)
-            {
-                newRopeHinges.push_back(ropeHinges_[i]);
-            }
-        }
-    }
-    if(!springstodelete.empty() || !particlestodelete.empty() || !rodsToDelete.empty() || !springHingesToDelete.empty() || !ropeHingesToDelete.empty())
-    {
-        renderLock_.lock();
-        {
-            if(!ropeHingesToDelete.empty())
-                ropeHinges_ = newRopeHinges;
-            if(!springHingesToDelete.empty())
-                flexibleRodHinges_ = newSpringHinges;
-            if(!rodsToDelete.empty())
-            {
-                rods_ = newrods;
-                for(vector<RopeHinge>::iterator hinge = ropeHinges_.begin(); hinge != ropeHinges_.end(); ++hinge)
-                {
-                    hinge->s1 = remainingrodmap[hinge->s1];
-                    hinge->s2 = remainingrodmap[hinge->s2];
-                }
-            }
-            if(!springstodelete.empty())
-            {
-                springs_ = newsprings;
-                for(vector<FlexibleRodHinge>::iterator hinge = flexibleRodHinges_.begin(); hinge != flexibleRodHinges_.end(); ++hinge)
-                {
-                    hinge->s1 = remainingspringmap[hinge->s1];
-                    hinge->s2 = remainingspringmap[hinge->s2];
-                }
-            }
-            if(!particlestodelete.empty())
-            {
-                particles_ = newparticles;
-                for(vector<Spring>::iterator it = springs_.begin(); it != springs_.end(); ++it)
-                {
-                    it->p1 = remainingparticlemap[it->p1];
-                    it->p2 = remainingparticlemap[it->p2];
-                }
-                for(vector<Rod>::iterator it = rods_.begin(); it != rods_.end(); ++it)
-                {
-                    it->p1 = remainingparticlemap[it->p1];
-                    it->p2 = remainingparticlemap[it->p2];
-                }
-            }
-        }
-        renderLock_.unlock();
+        setupGameMode();
     }
 }
 

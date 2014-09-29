@@ -93,7 +93,6 @@ void MainWindow::setParametersFromUI()
     //Extra
     params.gameModeOn = ui->gameModeCheckBox->isChecked();
     params.cloudsOn =  ui->cloudsCheckBox->isChecked();
-//    params.score = ui->scoreTextLabel->text().toDouble();
 
     setUIFromParameters(params);
     QMetaObject::invokeMethod(&cont_, "updateParameters", Q_ARG(SimParameters, params));
@@ -171,7 +170,6 @@ void MainWindow::setUIFromParameters(const SimParameters &params)
     //Extra
     ui->gameModeCheckBox->setChecked(params.gameModeOn);
     ui->cloudsCheckBox->setChecked(params.cloudsOn);
-    ui->scoreTextLabel->setText(QString::number(params.score));
 
 }
 
@@ -363,6 +361,15 @@ void MainWindow::on_ropeSegmentsEdit_editingFinished()
 
 void MainWindow::on_gameModeCheckBox_clicked()
 {
+    if (simRunning_)
+    {
+        on_startSimulationButton_clicked();
+    }
+    QMetaObject::invokeMethod(&cont_, "clearScene");
+    if (ui->gameModeCheckBox->isChecked())
+    {
+        QMetaObject::invokeMethod(&cont_, "setupGameMode");
+    }
     setParametersFromUI();
 }
 

@@ -115,18 +115,21 @@ public:
 class Simulation
 {
 public:
-    Simulation(SimParameters &params);
+    Simulation(const SimParameters &params);
 
-    void addParticle(double x, double y);
     void addSaw(double x, double y);
     void addCloud(double x, double y);
-
+    void addParticle(double x, double y);
     void takeSimulationStep();
     void render();
     void clearScene();
 
+    void setupGameMode();
+
 private:
-    SimParameters &params_;
+    static bool gameModeOn;
+    static int goalParticleID;
+    const SimParameters &params_;
     QMutex renderLock_;
     double time_;
     std::vector<Particle> particles_;
@@ -137,6 +140,7 @@ private:
     std::vector<Saw> saws_;
     std::vector<Cloud> clouds_;
 
+    void addParticle(double x, double y, bool fixed);
     void buildConfiguration(Eigen::VectorXd &q, Eigen::VectorXd &qprev, Eigen::VectorXd &v);
     void unbuildConfiguration(const Eigen::VectorXd &q, const Eigen::VectorXd &v);
     void renderCloud(Eigen::Vector2d point, double radius);
@@ -163,7 +167,8 @@ private:
     void detectSawedRods(std::set<int> &rodsToDelete, std::set<int> &ropeHingesToDelete);
     void detectSawedParticles(std::set<int> &particlesToDelete);
 
-    void detectCollectedParticles();
+
+    void detectGoalParticleCollision();
 };
 
 #endif // SIMULATION_H
