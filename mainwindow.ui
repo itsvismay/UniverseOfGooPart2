@@ -394,6 +394,32 @@
           <string>Elastic Bending</string>
          </property>
         </widget>
+        <widget class="QCheckBox" name="gameModeCheckBox">
+         <property name="geometry">
+          <rect>
+           <x>30</x>
+           <y>180</y>
+           <width>111</width>
+           <height>22</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>Game Mode</string>
+         </property>
+        </widget>
+        <widget class="QCheckBox" name="cloudsCheckBox">
+         <property name="geometry">
+          <rect>
+           <x>170</x>
+           <y>180</y>
+           <width>97</width>
+           <height>22</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>Clouds</string>
+         </property>
+        </widget>
        </widget>
       </item>
       <item>

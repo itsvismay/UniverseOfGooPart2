@@ -89,7 +89,9 @@ void MainWindow::setParametersFromUI()
     params.ropeBend = ui->ropeBendEdit->text().toDouble();
     params.ropeSegments = ui->ropeSegmentsEdit->text().toInt();
 
-
+    //Extra
+    params.gameModeOn = ui->gameModeCheckBox->isChecked();
+    params.cloudsOn =  ui->cloudsCheckBox->isChecked();
 
     setUIFromParameters(params);
     QMetaObject::invokeMethod(&cont_, "updateParameters", Q_ARG(SimParameters, params));
@@ -163,6 +165,10 @@ void MainWindow::setUIFromParameters(const SimParameters &params)
     ui->ropeDensityEdit->setText(QString::number(params.ropeDensity));
     ui->ropeBendEdit->setText(QString::number(params.ropeBend));
     ui->ropeSegmentsEdit->setText(QString::number(params.ropeSegments));
+
+    //Extra
+    ui->gameModeCheckBox->setChecked(params.gameModeOn);
+    ui->cloudsCheckBox->setChecked(params.cloudsOn);
 
 }
 
@@ -348,6 +354,16 @@ void MainWindow::on_ropeBendEdit_editingFinished()
 }
 
 void MainWindow::on_ropeSegmentsEdit_editingFinished()
+{
+    setParametersFromUI();
+}
+
+void MainWindow::on_gameModeCheckBox_clicked()
+{
+    setParametersFromUI();
+}
+
+void MainWindow::on_cloudsCheckBox_clicked()
 {
     setParametersFromUI();
 }

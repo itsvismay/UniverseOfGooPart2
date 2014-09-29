@@ -1,7 +1,7 @@
 /********************************************************************************
 ** Form generated from reading UI file 'mainwindow.ui'
 **
-** Created: Tue Sep 23 15:52:00 2014
+** Created: Mon Sep 29 00:12:34 2014
 **      by: Qt User Interface Compiler version 4.8.1
 **
 ** WARNING! All changes made in this file will be lost when recompiling UI file!
@@ -76,6 +76,8 @@ public:
     QLabel *dampingStiffnessLabel;
     QLineEdit *dampingStiffnessEdit;
     QCheckBox *elasticBendingCheckBox;
+    QCheckBox *gameModeCheckBox;
+    QCheckBox *cloudsCheckBox;
     QGroupBox *uiOptionsBox;
     QWidget *horizontalLayoutWidget_2;
     QHBoxLayout *horizontalLayout_2;
@@ -252,6 +254,12 @@ public:
         elasticBendingCheckBox = new QCheckBox(activeForcesBox);
         elasticBendingCheckBox->setObjectName(QString::fromUtf8("elasticBendingCheckBox"));
         elasticBendingCheckBox->setGeometry(QRect(30, 130, 151, 21));
+        gameModeCheckBox = new QCheckBox(activeForcesBox);
+        gameModeCheckBox->setObjectName(QString::fromUtf8("gameModeCheckBox"));
+        gameModeCheckBox->setGeometry(QRect(30, 180, 111, 22));
+        cloudsCheckBox = new QCheckBox(activeForcesBox);
+        cloudsCheckBox->setObjectName(QString::fromUtf8("cloudsCheckBox"));
+        cloudsCheckBox->setGeometry(QRect(170, 180, 97, 22));
 
         verticalLayout->addWidget(activeForcesBox);
 
@@ -427,6 +435,8 @@ public:
         dampingStiffnessCheckBox->setText(QApplication::translate("MainWindow", "Viscous Damping", 0, QApplication::UnicodeUTF8));
         dampingStiffnessLabel->setText(QApplication::translate("MainWindow", "Stiffness:", 0, QApplication::UnicodeUTF8));
         elasticBendingCheckBox->setText(QApplication::translate("MainWindow", "Elastic Bending", 0, QApplication::UnicodeUTF8));
+        gameModeCheckBox->setText(QApplication::translate("MainWindow", "Game Mode", 0, QApplication::UnicodeUTF8));
+        cloudsCheckBox->setText(QApplication::translate("MainWindow", "Clouds", 0, QApplication::UnicodeUTF8));
         uiOptionsBox->setTitle(QApplication::translate("MainWindow", "UI Options", 0, QApplication::UnicodeUTF8));
         clickFunctionBox->setTitle(QApplication::translate("MainWindow", "Click Function", 0, QApplication::UnicodeUTF8));
         addParticleButton->setText(QApplication::translate("MainWindow", "Add Particle", 0, QApplication::UnicodeUTF8));

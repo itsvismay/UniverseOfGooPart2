@@ -27,15 +27,31 @@ void Simulation::render()
 
     int numcirclewedges = 20;
 
+    // Background Render
+    glBegin(GL_QUADS);
+    {
+        glColor3f(0.529, 0.808, 0.98);
+        glVertex2f(-1, 1);
+        glVertex2f(1, 1);
+        glColor3f(1, 1, 1);
+        glVertex2f(1, -1);
+        glVertex2f(-1, -1);
+    }
+    glEnd();
+
+    // Floor Render
     if(params_.activeForces & SimParameters::F_FLOOR)
     {
         glBegin(GL_TRIANGLES);
         {
-            glColor3f(0.3, 1.0, 0.3);
+//            glColor3f(0.3, 1.0, 0.3);
+//            glColor3f(0.911, 0.591, 0.28);
+            glColor3f(0, 0.78, 1);
 
             glVertex2f(-1, -0.5);
-            glVertex2f(1, -0.5);
             glVertex2f(-1, -1);
+            glColor3f(1, 0.986, 0.768);
+            glVertex2f(1, -0.5);
 
             glVertex2f(-1, -1);
             glVertex2f(1, -0.5);
@@ -46,14 +62,62 @@ void Simulation::render()
 
     renderLock_.lock();
     {
+//        unsigned int GridSizeX = 32;
+//        unsigned int GridSizeY = 32;
+//        unsigned int SizeX = 1;
+//        unsigned int SizeY = 4;
+//        glMatrixMode(GL_MODELVIEW);
+//        glLoadIdentity();
+//        glMatrixMode(GL_PROJECTION);
+//        glLoadIdentity();
+//        glOrtho(0,GridSizeX*SizeX,0,GridSizeY*SizeY,-1.0,1.0);
+
+//        glBegin(GL_QUADS);
+//        for (unsigned int x =0;x<GridSizeX;++x)
+//        {
+//            for (unsigned int y =0;y<GridSizeY/4;++y)
+//            {
+//                if ((x+y)%2) //modulo 2
+//                    glColor3f(0.5f,0.5f,0.5f); //brick 1
+//                else
+//                    glColor3f(0.7f,0.7f,0.7f); //brick2
+
+//                glVertex2f(x*SizeX,     y*SizeY);
+//                glVertex2f((x+1)*SizeX, y*SizeY);
+//                glVertex2f((x+1)*SizeX, (y+1)*SizeY);
+//                glVertex2f(x*SizeX,     (y+1)*SizeY);
+
+
+//            }
+
+//        }
+//        glEnd();
+
+        //Cloud Render
+        if (params_.cloudsOn)
+        {
+            for(vector<Cloud>::iterator it = clouds_.begin(); it!=clouds_.end(); ++it)
+            {
+                glColor3f(0.7, 07, 0.7);
+
+            }
+        }
+        // Game Mode Render
+        if (params_.gameModeOn)
+        {
+            glBegin(GL_QUADS);
+            {
+                glColor3f(1, 0, 0);
+
+            }
+            glEnd();
+        }
         // Rendering Rods
         for(vector<Rod>::iterator it = rods_.begin(); it != rods_.end(); ++it)
         {
             glColor3f(0.75, 0.0, 0.75);
             Vector2d sourcepos = particles_[it->p1].pos;
             Vector2d destpos   = particles_[it->p2].pos;
-
-//            double dist = (sourcepos-destpos).norm();
 
             glLineWidth(8);
 
@@ -94,9 +158,10 @@ void Simulation::render()
         for(vector<Particle>::iterator it = particles_.begin(); it != particles_.end(); ++it)
         {
             double radius = baseradius*sqrt(it->mass);
-            radius *= (1.0 + pulsefactor*sin(pulsespeed*time_));
+            double pulse = pulsefactor*sin(pulsespeed*time_);
+            radius *= (1.0 + pulse);
 
-            glColor3f(0,0,0);
+            glColor3f(0.9+0.2*pulse, 0.9+0.2*pulse, 0.9+0.2*pulse);
 
             if(it->fixed)
             {
@@ -109,6 +174,14 @@ void Simulation::render()
                 glVertex2f(it->pos[0], it->pos[1]);
                 for(int i=0; i<=numcirclewedges; i++)
                 {
+                    if (i%7 && !it->fixed)
+                    {
+                        glColor3f(0.9+0.2*pulse, 0.4+0.2*pulse, 0);
+                    }
+                    else if (!it->fixed)
+                    {
+                        glColor3f(0, 0.9+0.2*pulse, 0);
+                    }
                     glVertex2f(it->pos[0] + radius * cos(2*PI*i/numcirclewedges),
                                it->pos[1] + radius * sin(2*PI*i/numcirclewedges));
                 }
@@ -132,6 +205,17 @@ void Simulation::render()
                     double radius = (i%2==0) ? innerradius : outerradius;
                     glVertex2f(it->pos[0] + radius * cos(2*PI*i/spokes + sawangspeed*time_),
                                it->pos[1] + radius * sin(2*PI*i/spokes + sawangspeed*time_));
+                }
+            }
+            glEnd();
+            glColor3f(1,1,1);
+            glBegin(GL_TRIANGLE_FAN);
+            {
+                glVertex2f(it->pos[0], it->pos[1]);
+                for(int i=0; i<=numcirclewedges; i++)
+                {
+                    glVertex2f(it->pos[0] + 0.2*outerradius * cos(2*PI*i/numcirclewedges),
+                               it->pos[1] + 0.2*outerradius * sin(2*PI*i/numcirclewedges));
                 }
             }
             glEnd();
@@ -640,14 +724,7 @@ void Simulation::computeLagrangeMultipliers(const VectorXd &qVV, const VectorXd 
             break;
         }
         //Compute Gradient of F(lambda i + 1)
-        SparseMatrix<double> leftOfGradF(rods_.size(), qVV.rows());
-        leftOfGradF.setZero();
-        leftOfGradF = computeGradGTranspose(qInside).transpose();
-        SparseMatrix<double> rightOfGradF(qVV.rows(), rods_.size());
-        rightOfGradF.setZero();
-        rightOfGradF = params_.timeStep * params_.timeStep * massInverseMatrix * gradGTransposeofqVV;
-
-        gradF = leftOfGradF * rightOfGradF;
+        gradF = computeGradGTranspose(qInside).transpose() * params_.timeStep * params_.timeStep * massInverseMatrix * gradGTransposeofqVV;
         gradF.makeCompressed();
         SparseQR<SparseMatrix<double>, COLAMDOrdering<int> > solver;
         solver.compute(gradF);

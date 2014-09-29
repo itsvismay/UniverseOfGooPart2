@@ -1,7 +1,7 @@
 /****************************************************************************
 ** Meta object code from reading C++ file 'mainwindow.h'
 **
-** Created: Mon Sep 22 17:29:47 2014
+** Created: Mon Sep 29 00:12:55 2014
 **      by: The Qt Meta Object Compiler version 63 (Qt 4.8.1)
 **
 ** WARNING! All changes made in this file will be lost!
@@ -23,7 +23,7 @@ static const uint qt_meta_data_MainWindow[] = {
        6,       // revision
        0,       // classname
        0,    0, // classinfo
-      39,   14, // methods
+      41,   14, // methods
        0,    0, // properties
        0,    0, // enums/sets
        0,    0, // constructors
@@ -70,6 +70,8 @@ static const uint qt_meta_data_MainWindow[] = {
     1195,   11,   11,   11, 0x08,
     1232,   11,   11,   11, 0x08,
     1266,   11,   11,   11, 0x08,
+    1304,   11,   11,   11, 0x08,
+    1334,   11,   11,   11, 0x08,
 
        0        // eod
 };
@@ -114,6 +116,8 @@ static const char qt_meta_stringdata_MainWindow[] = {
     "on_ropeDensityEdit_editingFinished()\0"
     "on_ropeBendEdit_editingFinished()\0"
     "on_ropeSegmentsEdit_editingFinished()\0"
+    "on_gameModeCheckBox_clicked()\0"
+    "on_cloudsCheckBox_clicked()\0"
 };
 
 void MainWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
@@ -161,6 +165,8 @@ void MainWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         case 36: _t->on_ropeDensityEdit_editingFinished(); break;
         case 37: _t->on_ropeBendEdit_editingFinished(); break;
         case 38: _t->on_ropeSegmentsEdit_editingFinished(); break;
+        case 39: _t->on_gameModeCheckBox_clicked(); break;
+        case 40: _t->on_cloudsCheckBox_clicked(); break;
         default: ;
         }
     }
@@ -198,9 +204,9 @@ int MainWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 39)
+        if (_id < 41)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 39;
+        _id -= 41;
     }
     return _id;
 }

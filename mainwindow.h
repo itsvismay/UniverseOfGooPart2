@@ -89,6 +89,10 @@ private slots:
     void on_ropeBendEdit_editingFinished();
     void on_ropeSegmentsEdit_editingFinished();
 
+    //----------------------------
+    void on_gameModeCheckBox_clicked();
+    void on_cloudsCheckBox_clicked();
+
 private:
     Controller &cont_;
     Ui::MainWindow *ui;

@@ -16,9 +16,9 @@ SimParameters::SimParameters()
     dampingStiffness = 1.0;
 
     clickMode = CM_ADDPARTICLE, CM_ADDSAW;
-    connector = CT_RIGID_ROD;
+    connector = CT_SPRING;
     particleMass = 1.0;
-    particleFixed = true;
+    particleFixed = false;
     maxSpringDist = 0.25;
     sawRadius= 0.01;
 
@@ -29,4 +29,7 @@ SimParameters::SimParameters()
     ropeDensity = 2.0;
     ropeBend = 0.01;
     ropeSegments = 5;
+
+    cloudsOn = false;
+    gameModeOn = false;
 }

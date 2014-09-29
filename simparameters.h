@@ -41,6 +41,10 @@ struct SimParameters
     double ropeBend;
     double ropeSegments;
 
+    //Extra
+    bool cloudsOn;
+    bool gameModeOn;
+
 };
 
 #endif // SIMPARAMETERS_H

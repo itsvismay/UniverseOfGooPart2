@@ -100,6 +100,18 @@ public:
     double radius;
 };
 
+struct Cloud
+{
+public:
+    Cloud(Eigen::Vector2d pos1, Eigen::Vector2d pos2, Eigen::Vector2d pos3): pos1(pos1), pos2(pos2), pos3(pos3)
+    {
+
+    }
+    Eigen::Vector2d pos1;
+    Eigen::Vector2d pos2;
+    Eigen::Vector2d pos3;
+};
+
 class Simulation
 {
 public:
@@ -123,6 +135,7 @@ private:
     std::vector<RopeHinge> ropeHinges_;
     std::vector<Rod> rods_;
     std::vector<Saw> saws_;
+    std::vector<Cloud> clouds_;
 
     void buildConfiguration(Eigen::VectorXd &q, Eigen::VectorXd &qprev, Eigen::VectorXd &v);
     void unbuildConfiguration(const Eigen::VectorXd &q, const Eigen::VectorXd &v);
