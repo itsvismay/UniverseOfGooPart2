@@ -11,6 +11,24 @@ using namespace std;
 
 Simulation::Simulation(SimParameters &params) : params_(params), time_(0)
 {
+    Eigen::Vector2d pos1(-0.9,0.9);
+    clouds_.push_back(Cloud(pos1, 1));
+    Eigen::Vector2d pos2(0, 0.8);
+    clouds_.push_back(Cloud(pos2, .8));
+}
+void Simulation::renderCloud(Eigen::Vector2d point, double radius)
+{
+    glBegin(GL_TRIANGLE_FAN);
+    {
+        glVertex2f(point[0], point[1]);
+        for(int i=0; i<=20; i++)
+        {
+            glVertex2f(point[0] + radius * cos(2*PI*i/20),
+                       point[1] + radius * sin(2*PI*i/20));
+        }
+
+    }
+    glEnd();
 }
 
 void Simulation::render()
@@ -24,6 +42,7 @@ void Simulation::render()
     double sawangspeed = 10.0;
 
     double baselinewidth = 0.5;
+    double cloud_radius = 0.1;
 
     int numcirclewedges = 20;
 
@@ -62,44 +81,33 @@ void Simulation::render()
 
     renderLock_.lock();
     {
-//        unsigned int GridSizeX = 32;
-//        unsigned int GridSizeY = 32;
-//        unsigned int SizeX = 1;
-//        unsigned int SizeY = 4;
-//        glMatrixMode(GL_MODELVIEW);
-//        glLoadIdentity();
-//        glMatrixMode(GL_PROJECTION);
-//        glLoadIdentity();
-//        glOrtho(0,GridSizeX*SizeX,0,GridSizeY*SizeY,-1.0,1.0);
-
-//        glBegin(GL_QUADS);
-//        for (unsigned int x =0;x<GridSizeX;++x)
-//        {
-//            for (unsigned int y =0;y<GridSizeY/4;++y)
-//            {
-//                if ((x+y)%2) //modulo 2
-//                    glColor3f(0.5f,0.5f,0.5f); //brick 1
-//                else
-//                    glColor3f(0.7f,0.7f,0.7f); //brick2
-
-//                glVertex2f(x*SizeX,     y*SizeY);
-//                glVertex2f((x+1)*SizeX, y*SizeY);
-//                glVertex2f((x+1)*SizeX, (y+1)*SizeY);
-//                glVertex2f(x*SizeX,     (y+1)*SizeY);
-
-
-//            }
-
-//        }
-//        glEnd();
 
         //Cloud Render
         if (params_.cloudsOn)
         {
             for(vector<Cloud>::iterator it = clouds_.begin(); it!=clouds_.end(); ++it)
             {
-                glColor3f(0.7, 07, 0.7);
+                if(params_.simRunning)
+                {
+                    it->pos1[0]+=params_.timeStep*it->vel;
+                    if(it->pos1[0]>1.1){
+                        it->pos1[0] =-1.3;
+                    }
+                }
+                Eigen::Vector2d subcloud = it->pos1;
 
+                glColor3f(0.95, .95, 0.95);
+                renderCloud(it->pos1, cloud_radius);
+
+                subcloud[0]+=0.08;
+                subcloud[1]+=0.05;
+                renderCloud(subcloud, cloud_radius);
+                subcloud[0]+=0.08;
+                subcloud[1]-=0.1;
+                renderCloud(subcloud, cloud_radius);
+                subcloud[0]+=0.08;
+                subcloud[1]+=0.05;
+                renderCloud(subcloud, cloud_radius);
             }
         }
         // Game Mode Render

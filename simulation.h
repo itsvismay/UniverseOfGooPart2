@@ -103,13 +103,13 @@ public:
 struct Cloud
 {
 public:
-    Cloud(Eigen::Vector2d pos1, Eigen::Vector2d pos2, Eigen::Vector2d pos3): pos1(pos1), pos2(pos2), pos3(pos3)
+    Cloud(Eigen::Vector2d pos1, double vel): pos1(pos1), vel(vel)
     {
 
     }
     Eigen::Vector2d pos1;
-    Eigen::Vector2d pos2;
-    Eigen::Vector2d pos3;
+    double vel;
+
 };
 
 class Simulation
@@ -119,6 +119,7 @@ public:
 
     void addParticle(double x, double y);
     void addSaw(double x, double y);
+    void addCloud(double x, double y);
 
     void takeSimulationStep();
     void render();
@@ -127,7 +128,6 @@ public:
 private:
     SimParameters &params_;
     QMutex renderLock_;
-
     double time_;
     std::vector<Particle> particles_;
     std::vector<Spring> springs_;
@@ -139,7 +139,7 @@ private:
 
     void buildConfiguration(Eigen::VectorXd &q, Eigen::VectorXd &qprev, Eigen::VectorXd &v);
     void unbuildConfiguration(const Eigen::VectorXd &q, const Eigen::VectorXd &v);
-
+    void renderCloud(Eigen::Vector2d point, double radius);
     void computeForceAndHessian(const Eigen::VectorXd &q, const Eigen::VectorXd &qprev, Eigen::VectorXd &F, Eigen::SparseMatrix<double> &H);
     void processGravityForce(Eigen::VectorXd &F);
     void processElasticBendingForce(const Eigen::VectorXd &q, Eigen::VectorXd &F);
