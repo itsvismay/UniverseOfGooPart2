@@ -1184,6 +1184,11 @@ void Simulation::deleteSawedObjects()
         }
         if (params_.gameModeOn)
         {
+            if (particlestodelete.count(goalParticleID) != 0)
+            {
+                setupGameMode();
+                return;
+            }
             goalParticleID = remainingparticlemap[goalParticleID];
         }
     }
