@@ -1,0 +1,16 @@
+Universe of Goo Milestone 2
+by Vismay and Kaivan
+
+How to compile our code?
+ - Open up the goo.pro file in QtCreator and hit build
+
+Creative Components:
+	- Beach theme with water, sand and sky gradients
+	- Particles are now beach balls with multiple colors and gradients
+	- Clouds can be turned on/off through the UI
+		-clouds move and are auto-regenerated when they move off the screen
+	-Game Mode
+		-start with a special Golden Particle
+		-using any means possible, try to get the Golden Particle into one of the 2 boxes on the screen
+		-if the golden particle reaches the box, you win the game
+		-if the golden particle is destroyed or leaves the screen, you lose the game
